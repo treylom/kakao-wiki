@@ -10,7 +10,7 @@ Design so a Windows spike is *minimal*:
   - The ONLY spike-dependent bits are the window/control selectors, exposed as ENV VARS
     so the spike operator never edits code:
         KW_KAKAO_TITLE_RE   window title regex for the KakaoTalk main/app window
-                            (default ".*KakaoTalk.*"; Korean build may be ".*카카오톡.*")
+                            (default matches both EN/KR: ".*(KakaoTalk|카카오톡).*")
         KW_ROOM_TITLE_RE    chat-room window title regex (default = the room name)
         KW_SAVE_HOTKEY      save hotkey (default "^s")
         KW_DIALOG_WAIT_SEC  seconds to wait for the save dialog (default 8)
@@ -62,7 +62,7 @@ def _export_via_ctrl_s(room: str, out_dir: Path) -> Path:
     from pywinauto import Application          # type: ignore
     from pywinauto.keyboard import send_keys   # type: ignore
 
-    kakao_re = os.environ.get("KW_KAKAO_TITLE_RE", ".*KakaoTalk.*")
+    kakao_re = os.environ.get("KW_KAKAO_TITLE_RE", ".*(KakaoTalk|카카오톡).*")  # EN+KR locale
     room_re  = os.environ.get("KW_ROOM_TITLE_RE", f".*{room}.*")
     hotkey   = os.environ.get("KW_SAVE_HOTKEY", "^s")
     dlg_wait = int(os.environ.get("KW_DIALOG_WAIT_SEC", "8"))
