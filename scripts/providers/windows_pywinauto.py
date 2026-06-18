@@ -1,47 +1,116 @@
 #!/usr/bin/env python3
-"""windows_pywinauto.py — kakao-wiki Windows provider (⚠️ SPIKE-PENDING / EXPERIMENTAL).
+"""windows_pywinauto.py — kakao-wiki Windows provider (⚠️ SPIKE-PENDING until verified).
 
-현실성 등급(연구 §2.2): 🟢 Ctrl+S 로컬 txt 저장 = Windows 카톡 최우선 경로
-(Mac 다단 메뉴보다 단순). 본 스캐폴드는 그 경로를 pywinauto(UIA)로 코드화한다.
+Goal: real KakaoTalk-on-Windows chat export, the macOS provider's counterpart.
+Path: `Ctrl+S` → local .txt save (graded 🟢 — simpler than KakaoTalk's macOS menu chain).
+
+Design so a Windows spike is *minimal*:
+  - Everything that does NOT depend on UI selectors is fully implemented here:
+    save-dialog path injection, file polling, room verification, txt normalization handoff.
+  - The ONLY spike-dependent bits are the window/control selectors, exposed as ENV VARS
+    so the spike operator never edits code:
+        KW_KAKAO_TITLE_RE   window title regex for the KakaoTalk main/app window
+                            (default ".*KakaoTalk.*"; Korean build may be ".*카카오톡.*")
+        KW_ROOM_TITLE_RE    chat-room window title regex (default = the room name)
+        KW_SAVE_HOTKEY      save hotkey (default "^s")
+        KW_DIALOG_WAIT_SEC  seconds to wait for the save dialog (default 8)
+        KW_FILE_WAIT_SEC    seconds to wait for the file to land (default 30)
 
 🚨 HONESTY GUARD (source-fact §4):
-  - 본 코드는 **실제 KakaoTalk Windows 에서 검증되지 않았다**. UI 요소 셀렉터·키 동작·
-    저장 다이얼로그 흐름은 Mac 과 달라 **반드시 spike 로 재유도**해야 한다.
-  - 따라서 기본 동작은 **검증 안내 + 비-0 exit** (성공을 가장하지 않음).
-  - spike 로 셀렉터를 확정한 뒤 `--i-have-verified-on-real-windows` 플래그로만 실행 허용.
-  - 체크리스트: references/windows-provider-spike.md
-
-대안: pywinauto 대신 AutoHotkey(빠른 UIA 클릭) 또는 PowerShell UIAutomation 도 가능
-(연구 §2.1). Ctrl+S 키 입력만으로 로컬 txt 가 떨어지면 도구 무관 단순.
+  Not yet verified on real KakaoTalk Windows. The selectors above are *assumptions*.
+  Default run = guidance + non-zero exit (never fakes success). The spike operator runs
+  with `--i-have-verified-on-real-windows` AFTER confirming the hotkey + selectors work.
+  Checklist: references/windows-provider-spike.md
 """
 from __future__ import annotations
-import argparse, sys
+import argparse, os, sys, time
+from datetime import date
 from pathlib import Path
 
 SPIKE_CHECKLIST = """\
-[Windows spike 체크리스트 — 검증 전 'completed' 금지]
- 1. KakaoTalk Windows 설치·로그인 상태.
- 2. 대상 방을 더블클릭으로 *대화창* 오픈(검색-리스트 상태 ❌).
- 3. 대화창 포커스 후 Ctrl+S → '내 컴퓨터에 txt 저장' 다이얼로그가 뜨는지 확인.
- 4. 저장 경로/파일명 패턴 확정(예: KakaoTalk_<방>_<ts>.txt) → normalize.py txt 파서와 정합 확인.
- 5. pywinauto backend='uia' 로 대화창 윈도우 타이틀/컨트롤 식별자 재유도(Mac 셀렉터 무효).
- 6. UIA 노출이 약한 컨트롤은 send_keys('^s') 키 입력 + 다이얼로그 Enter 로 폴백.
- 7. 위 전부 1회 실 export 성공 후에만 HONESTY GUARD 해제.
+[Windows spike — do all before reporting 'works']
+ 1. KakaoTalk Windows installed + logged in.
+ 2. Open the TARGET ROOM as a *chat window* by double-click (NOT the search-list state).
+ 3. Focus the chat window, press the save hotkey (default Ctrl+S) → confirm a
+    "save .txt to my PC" dialog appears. If a different hotkey/menu is needed, note it.
+ 4. Confirm saved file path + name pattern (e.g. KakaoTalk_<room>_<ts>.txt) and that
+    normalize.py's txt parser reads it (adjust TXT parser if the format differs).
+ 5. Find the window title regex for (a) the KakaoTalk window and (b) the room window.
+    Export them as KW_KAKAO_TITLE_RE / KW_ROOM_TITLE_RE (no code edit needed).
+ 6. If a control is not UIA-exposed, fall back to send_keys for that step.
+ 7. After ONE real export succeeds: rerun with --i-have-verified-on-real-windows,
+    paste the env vars used + the verification log into references/windows-provider-spike.md,
+    then flip status to GREEN in architecture.md / SKILL.md.
 """
 
-# --- 검증 후 활성화할 실제 흐름 (현재 비활성 — 참조용 스캐폴드) ---
-def _export_via_ctrl_s(room: str, out_dir: Path) -> Path:  # pragma: no cover (spike-pending)
-    from pywinauto import Application  # type: ignore
-    # NOTE: 아래 타이틀/셀렉터는 *추정값* — spike 에서 실측 교체 필요.
-    app = Application(backend="uia").connect(title_re=".*KakaoTalk.*")
-    win = app.window(title_re=f".*{room}.*")
+
+def _verify_room_in_file(path: Path, room: str) -> bool:
+    """Selector-free room check: the export's header/first lines should mention the room.
+    Conservative — if we can't read it, we do NOT claim a match."""
+    try:
+        head = path.read_text(encoding="utf-8", errors="ignore")[:4000]
+    except OSError:
+        return False
+    # NFC-insensitive substring (KakaoTalk export usually leads with the room title line)
+    import unicodedata
+    norm = lambda s: unicodedata.normalize("NFC", s)
+    return norm(room) in norm(head)
+
+
+def _export_via_ctrl_s(room: str, out_dir: Path) -> Path:
+    """Real export flow. Selector-dependent steps read ENV; everything else is complete."""
+    from pywinauto import Application          # type: ignore
+    from pywinauto.keyboard import send_keys   # type: ignore
+
+    kakao_re = os.environ.get("KW_KAKAO_TITLE_RE", ".*KakaoTalk.*")
+    room_re  = os.environ.get("KW_ROOM_TITLE_RE", f".*{room}.*")
+    hotkey   = os.environ.get("KW_SAVE_HOTKEY", "^s")
+    dlg_wait = int(os.environ.get("KW_DIALOG_WAIT_SEC", "8"))
+    file_wait = int(os.environ.get("KW_FILE_WAIT_SEC", "30"))
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    target = out_dir / f"{room}-{date.today().isoformat()}.raw.txt"
+    if target.exists():
+        target.unlink()
+
+    app = Application(backend="uia").connect(title_re=kakao_re, timeout=10)
+    win = app.window(title_re=room_re)
     win.set_focus()
-    win.type_keys("^s")            # Ctrl+S → 로컬 txt 저장
-    # 저장 다이얼로그: 경로 입력/Enter (spike 에서 다이얼로그 구조 확정)
-    from pywinauto.keyboard import send_keys
-    send_keys("{ENTER}")
-    # TODO(spike): 저장 완료 폴링 + 파일 경로 회수 + 방 검증(파일명 substring)
-    raise NotImplementedError("spike 에서 저장경로 회수·검증 로직 확정 후 구현")
+    time.sleep(0.5)
+    win.type_keys(hotkey)  # Ctrl+S → save-as dialog
+
+    # Save dialog (standard Win32 "Save As"): type the absolute path into the filename edit
+    # and confirm. We drive it by keystrokes so it works even if the dialog's controls are
+    # not richly UIA-exposed: select-all, type path, Enter.
+    time.sleep(min(dlg_wait, 3))
+    try:
+        dlg = app.window(title_re=".*(저장|Save).*")
+        dlg.wait("exists ready", timeout=dlg_wait)
+        edits = dlg.descendants(control_type="Edit")
+        if edits:
+            edits[0].set_focus()
+            send_keys("^a")
+            send_keys(str(target).replace(" ", "{SPACE}"), with_spaces=True)
+        send_keys("{ENTER}")
+    except Exception:
+        # Dialog not matched by title — fall back to blind keystrokes (operator confirms in spike)
+        send_keys("^a")
+        send_keys(str(target), with_spaces=True)
+        send_keys("{ENTER}")
+
+    # Poll for the file to land
+    deadline = time.time() + file_wait
+    while time.time() < deadline:
+        if target.exists() and target.stat().st_size > 0:
+            break
+        time.sleep(0.5)
+    if not (target.exists() and target.stat().st_size > 0):
+        raise RuntimeError(f"export file not found after {file_wait}s: {target}")
+
+    # Room verification (selector-free, fail-fast like the macOS CSV assert)
+    if not _verify_room_in_file(target, room):
+        raise RuntimeError(f"room assert FAILED — exported file does not mention '{room}': {target}")
+    return target
 
 
 def main() -> int:
@@ -49,21 +118,23 @@ def main() -> int:
     ap.add_argument("--room", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--i-have-verified-on-real-windows", action="store_true",
-                    help="spike 로 셀렉터/키를 실검증한 경우에만 사용")
+                    help="use ONLY after a real KakaoTalk-Windows spike confirmed the hotkey + selectors")
     a = ap.parse_args()
 
-    print("=== kakao-wiki Windows provider (SPIKE-PENDING) ===")
-    print(SPIKE_CHECKLIST)
+    print("=== kakao-wiki Windows provider ===")
     if not a.__dict__["i_have_verified_on_real_windows"]:
-        print("\n⚠️ 미검증 — 수집 미수행(성공 가장 ❌). spike 완료 후 --i-have-verified-on-real-windows 로 재실행.")
-        return 4  # collect.py 가 이 비-0 을 보고 SPIKE-PENDING 가드 발동
-    # 검증 플래그가 있어도, 실제 구현은 spike 산출 셀렉터로 _export_via_ctrl_s 를 완성한 뒤 활성화.
+        print(SPIKE_CHECKLIST)
+        print("\n⚠️ SPIKE-PENDING — not run (no success faking). After the spike, rerun with "
+              "--i-have-verified-on-real-windows (set KW_KAKAO_TITLE_RE / KW_ROOM_TITLE_RE if needed).")
+        return 4  # collect.py treats non-zero as the SPIKE-PENDING guard
+
     try:
         path = _export_via_ctrl_s(a.room, Path(a.out))
-    except NotImplementedError as e:
-        print(f"\n⚠️ 구현 미완(spike 산출 필요): {e}")
+    except Exception as e:  # noqa: BLE001 — surface the real failure to the spike operator
+        print(f"\n❌ export failed: {type(e).__name__}: {e}")
+        print("→ adjust KW_KAKAO_TITLE_RE / KW_ROOM_TITLE_RE / KW_SAVE_HOTKEY and retry (see spike doc).")
         return 4
-    print(str(path))
+    print(str(path))  # last stdout line = export path (collect.py contract)
     return 0
 
 

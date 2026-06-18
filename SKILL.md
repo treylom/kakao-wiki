@@ -49,11 +49,14 @@ kakao-wiki/
     collect.py              # provider dispatch: collect(room, provider) -> normalized.json
     normalize.py            # raw export (CSV/txt) -> normalized messages (parser, no GUI)
     store_to_wiki.py        # normalized -> vault markdown note
+    summarize.py            # pick a summary STYLE (detect /prompt skill, else presets)
     send.py                 # send(channel, message): kakao | discord | slack
     providers/
       macos_osascript.sh    # GREEN: KakaoTalk GUI export -> CSV (mutex + room asserts)
-      windows_pywinauto.py  # SPIKE-PENDING: Ctrl+S local txt export scaffold
+      windows_pywinauto.py  # SPIKE-PENDING: Ctrl+S local txt export (selectors via ENV)
       db_kakaocli.sh        # EXPERIMENTAL: kakaocli DB read -> CSV
+  prompts/
+    summary-styles.md       # preset summary-style prompts (brief/detailed/bullets/formal/casual)
   references/
     architecture.md         # provider abstraction + data flow + Windows feasibility grades
     macos-provider.md       # osascript dependency points + verification log
@@ -83,6 +86,17 @@ Produces `out/<ROOM>-<DATE>.raw.csv` (or .txt) and `out/<ROOM>-<DATE>.normalized
 python3 scripts/store_to_wiki.py --normalized out/<ROOM>-<DATE>.normalized.json \
   --vault "<ABS vault path>" --subdir "Library/Research/<ROOM>"
 ```
+
+### 2.5 (optional) Choose a summary style
+Let the user pick how the digest reads. `summarize.py` auto-detects the `/prompt` skill
+(uses it if present) and otherwise emits a bundled preset prompt; pipe its output to your
+summary LLM, write the result to `summary.txt`, then send it.
+```bash
+python3 scripts/summarize.py --list                       # brief | detailed | bullets | formal | casual
+python3 scripts/summarize.py --style brief \
+  --normalized out/<ROOM>-<DATE>.normalized.json --room "<ROOM>"   # prints a ready prompt
+```
+Add or edit styles in `prompts/summary-styles.md` (one `## <id>` + fenced prompt each).
 
 ### 3. (optional) Send a summary
 ```bash
