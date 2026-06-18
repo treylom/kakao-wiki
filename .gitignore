@@ -20,3 +20,6 @@ kakaocli
 # secrets
 .env
 *.token
+credentials.env
+*.creds
+.kakao-wiki/

@@ -27,6 +27,8 @@ import argparse, os, sys, time
 from datetime import date
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # = providers/ (_credentials 위치)
+
 SPIKE_CHECKLIST = """\
 [Windows spike — do all before reporting 'works']
  1. KakaoTalk Windows installed + logged in.
@@ -42,6 +44,69 @@ SPIKE_CHECKLIST = """\
     paste the env vars used + the verification log into references/windows-provider-spike.md,
     then flip status to GREEN in architecture.md / SKILL.md.
 """
+
+
+def _require_creds():
+    """ⓐ user-credential 모델: 로컬 설정에서 ID/PW 로드. 없으면 안내 후 exit 4.
+    PW 는 Secret 래퍼로 감싸 화면/로그에 절대 노출되지 않는다(_credentials.py)."""
+    from _credentials import load_credentials, CRED_HELP
+    creds = load_credentials()
+    if not creds.is_complete():
+        sys.stderr.write(CRED_HELP)
+        raise SystemExit(4)
+    sys.stderr.write(f"[login] credentials loaded (source={creds.source}; id 노출 OK / pw 비노출)\n")
+    return creds
+
+
+def _login_via_keyboard(app, creds) -> None:
+    """ⓐ 자동 로그인: 로그인 화면이면 키보드로 ID→Tab→PW→Enter (좌표 클릭 ❌).
+    PW 는 KakaoTalk 입력창에만 들어가고 stdout/로그 echo 0. 이미 로그인(세션 유지)이면 즉시 반환.
+    🔬 실측 TODO(spike): 로그인 창 타이틀 정규식·필드 탭 순서·2FA 프롬프트 유무 확정."""
+    from pywinauto.keyboard import send_keys  # type: ignore
+    login_re = os.environ.get("KW_LOGIN_WINDOW_RE", ".*(로그인|Login).*")
+    try:
+        dlg = app.window(title_re=login_re)
+        if not dlg.exists(timeout=int(os.environ.get("KW_LOGIN_WAIT_SEC", "3"))):
+            sys.stderr.write("[login] 로그인 창 없음 — 세션 유지로 간주(ⓑ-style)\n")
+            return
+    except Exception:
+        return
+    dlg.set_focus()
+    time.sleep(0.5)
+    send_keys(creds.kakao_id, with_spaces=True)          # ID 화면 노출 OK (재경님 결정)
+    send_keys("{TAB}")
+    send_keys(creds.password.reveal(), with_spaces=True)  # PW: masked 입력, 로그 echo 0
+    send_keys("{ENTER}")
+    time.sleep(int(os.environ.get("KW_LOGIN_WAIT_SEC", "8")))
+
+
+def _open_room_via_search(app, room: str) -> None:
+    """ⓐ 방 자동오픈: 키보드 검색→Enter (좌표 클릭 ❌ = 오클릭 방지).
+    🔬 실측 TODO(spike): 검색 포커스 단축키(KW_SEARCH_HOTKEY)·결과 선택키·단일창 패널 구조 확정."""
+    from pywinauto.keyboard import send_keys  # type: ignore
+    kakao_re = os.environ.get("KW_KAKAO_TITLE_RE", ".*(KakaoTalk|카카오톡).*")
+    search_hotkey = os.environ.get("KW_SEARCH_HOTKEY", "^f")  # 🔬 실측 대상(기본 추정)
+    main = app.window(title_re=kakao_re)
+    main.set_focus()
+    time.sleep(0.5)
+    send_keys(search_hotkey)
+    time.sleep(0.8)
+    send_keys(room, with_spaces=True)
+    time.sleep(1.2)
+    send_keys("{ENTER}")  # 첫 결과(self-chat) 열기
+    time.sleep(1.2)
+
+
+def _unattended_prelude(room: str) -> None:
+    """무인 모드 prelude: 로그인(ⓐ creds) + 방 자동오픈 (export 직전).
+    ponytail: prelude 가 app 을 connect 하고 _export_via_ctrl_s 가 재-connect = 무해(idempotent).
+    실측 후 단일 connect 로 합치고 싶으면 그때 리팩토링(현재는 명확성 우선)."""
+    from pywinauto import Application  # type: ignore
+    creds = _require_creds()
+    kakao_re = os.environ.get("KW_KAKAO_TITLE_RE", ".*(KakaoTalk|카카오톡).*")
+    app = Application(backend="uia").connect(title_re=kakao_re, timeout=15)
+    _login_via_keyboard(app, creds)
+    _open_room_via_search(app, room)
 
 
 def _verify_room_in_file(path: Path, room: str) -> bool:
@@ -119,6 +184,10 @@ def main() -> int:
     ap.add_argument("--out", required=True)
     ap.add_argument("--i-have-verified-on-real-windows", action="store_true",
                     help="use ONLY after a real KakaoTalk-Windows spike confirmed the hotkey + selectors")
+    ap.add_argument("--unattended", action="store_true",
+                    help="full unattended (ⓐ): auto-login (local user creds) + auto-open room + export. "
+                         "Set KW_KAKAO_ID/KW_KAKAO_PW locally (see _credentials.py). Still gated by "
+                         "--i-have-verified-on-real-windows until the login/search selectors are spiked.")
     a = ap.parse_args()
 
     print("=== kakao-wiki Windows provider ===")
@@ -129,6 +198,8 @@ def main() -> int:
         return 4  # collect.py treats non-zero as the SPIKE-PENDING guard
 
     try:
+        if a.unattended:
+            _unattended_prelude(a.room)   # ⓐ auto-login + auto-open room (spike-gated)
         path = _export_via_ctrl_s(a.room, Path(a.out))
     except Exception as e:  # noqa: BLE001 — surface the real failure to the spike operator
         print(f"\n❌ export failed: {type(e).__name__}: {e}")

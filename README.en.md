@@ -78,6 +78,26 @@ python3 scripts/send.py --channel slack   --target "<#channel>" --message-file s
 
 ---
 
+## Unattended collection (Windows ⓐ — designed, spike-pending)
+
+To collect on Windows with zero human interaction (auto-login + auto-open room + export):
+
+```bash
+# 1) Set credentials LOCALLY (never commit — .gitignored)
+#    env:   set KW_KAKAO_ID=...  &  set KW_KAKAO_PW=...
+#    or a file outside the repo:  ~/.kakao-wiki/credentials.env
+# 2) Run unattended
+python scripts/providers/windows_pywinauto.py --room "<ROOM>" --out ./out \
+  --unattended --i-have-verified-on-real-windows
+```
+
+- **Credentials are yours**: the ID/PW are set *locally by you*. The public repo never stores a password; the password is typed only into KakaoTalk and never shown on screen or in logs (`scripts/providers/_credentials.py`).
+- **Status**: the credential layer is complete and verified. The login/search UI automation is GREEN-promoted only after a real KakaoTalk-Windows spike pins the selectors (`references/windows-provider-spike.md`).
+
+> ⚠️ **Single-session constraint (KakaoTalk platform)**: KakaoTalk allows one account on one device at a time. The moment unattended collection logs in, your other device (phone, etc.) gets logged out of KakaoTalk. Run it as "this PC takes the session only while collecting; use other devices freely otherwise." This is a KakaoTalk limitation, not a bug in this tool.
+
+---
+
 ## How collection works (macOS)
 
 KakaoTalk's only export is a GUI menu, so `macos_osascript.sh` reproduces the human click path with Accessibility, with two safety asserts so you never silently collect the **wrong** room:
@@ -103,7 +123,8 @@ kakao-wiki/
     send.py                 # send(channel, message): kakao | discord | slack
     providers/
       macos_osascript.sh    # GREEN: KakaoTalk GUI export -> CSV (mutex + room asserts)
-      windows_pywinauto.py  # SPIKE-PENDING: Ctrl+S local txt export scaffold
+      windows_pywinauto.py  # SPIKE-PENDING: Ctrl+S export + unattended (ⓐ) login/open scaffold
+      _credentials.py       # ⓐ credential loading (local ID/PW, password never echoed — uncommitted)
       db_kakaocli.sh        # EXPERIMENTAL: kakaocli DB read -> CSV
   references/
     architecture.md         # provider abstraction + data flow + Windows feasibility grades

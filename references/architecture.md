@@ -33,6 +33,24 @@ normalized.json  {messages:[{time,user,msg}], count, users, first/last_time}
 
 normalize.py 가 CSV/txt 를 동일 normalized 스키마로 흡수 → 하위(store/send)는 provider 무관.
 
+## 무인(unattended) 흐름 — Windows ⓐ (재경님 결정 2026-06-19)
+
+기본 provider 계약 `(room, out_dir) → raw` 는 **로그인·방 열림을 가정**한다. Windows 무인 요건(사람 개입 0)은 그 앞에 두 단계를 더한다(`_unattended_prelude`):
+
+```
+[ⓐ 로그인]  자격증명(로컬 ID/PW) → 로그인 화면이면 키보드 ID→Tab→PW→Enter
+            (이미 세션 유지면 skip)              · 비밀번호 echo 0 (_credentials.py)
+   ▼
+[방 자동오픈]  키보드 검색 → 방이름 타이핑 → Enter (좌표 클릭 ❌)
+   ▼
+[export]      현 provider Ctrl+S (기존 검증 경로)
+```
+
+- 자격증명 = `_credentials.py`(env → `~/.kakao-wiki/credentials.env` → `<repo>/.env`). 공개 레포 미저장, 비밀번호 비노출(`Secret` 래퍼).
+- 로그인/검색 셀렉터·단축키는 **ENV 주입 + 🔬 실측 TODO**(`_login_via_keyboard`/`_open_room_via_search`). 실기 spike 전엔 honesty guard 로 실행 차단.
+- **단일 세션 제약**: 카카오톡 한 계정=한 기기 → 무인 로그인 시 다른 기기 세션 끊김. Mac AK 파이프라인과 동일 모델(필요 시에만 세션 회수). 플랫폼 제약(도구 결함 아님).
+- 검증: 자격증명 레이어 = **deterministic GREEN**(Secret 마스킹·로딩 우선순위 확인). UI 자동화 = spike-pending.
+
 ## Windows 현실성 등급 (내보내기 자동화가 실제로 되는가 — 연구 §2.2)
 
 | 방식 | 등급 | 근거 |

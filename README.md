@@ -81,6 +81,26 @@ python3 scripts/send.py --channel slack   --target "<#channel>" --message-file s
 
 ---
 
+## 무인 수집 (Windows ⓐ — 설계됨, 실측 대기)
+
+Windows에서 사람 개입 0으로 수집(자동 로그인 + 방 자동오픈 + export)하려면:
+
+```bash
+# 1) 자격증명을 로컬에 설정 (절대 커밋 금지 — .gitignore 처리됨)
+#    환경변수:  set KW_KAKAO_ID=...  &  set KW_KAKAO_PW=...
+#    또는 레포 밖 파일:  ~/.kakao-wiki/credentials.env  (KW_KAKAO_ID= / KW_KAKAO_PW=)
+# 2) 무인 실행
+python scripts/providers/windows_pywinauto.py --room "<ROOM>" --out ./out \
+  --unattended --i-have-verified-on-real-windows
+```
+
+- **자격증명은 사용자 소유**: ID/PW는 *본인이 로컬에 직접* 설정합니다. 공개 레포에 비밀번호를 저장하지 않으며, 비밀번호는 카카오톡 입력창에만 들어가고 화면·로그 어디에도 표시되지 않습니다(`scripts/providers/_credentials.py`).
+- **상태**: 자격증명 레이어는 완성·검증됨. 로그인/검색 UI 자동화는 실제 윈도우 카카오톡 spike로 셀렉터를 확정한 뒤 GREEN 승격(`references/windows-provider-spike.md`).
+
+> ⚠️ **단일 세션 제약(카카오톡 플랫폼)**: 카카오톡은 한 계정이 한 기기에서만 로그인됩니다. 무인 수집이 로그인하는 순간 다른 기기(폰 등)의 카카오톡 세션이 끊깁니다. *수집이 도는 동안만* 이 PC가 세션을 가져가고 안 돌 땐 다른 기기로 자유롭게 쓰는 모델로 운영하세요. 도구 결함이 아니라 카카오톡 자체 제약입니다.
+
+---
+
 ## 요약 스타일 선택 (사용자 커스텀)
 
 발송할 요약의 **말투·형식을 골라** 쓸 수 있습니다. 환경을 감지해 자동으로 적절한 방법을 씁니다:
@@ -137,7 +157,8 @@ kakao-wiki/
     send.py                 # send(채널, 메시지): kakao | discord | slack
     providers/
       macos_osascript.sh    # 검증됨: 카카오톡 GUI export -> CSV (mutex + 방 검증)
-      windows_pywinauto.py  # 검증대기: Ctrl+S 로컬 txt export (셀렉터 ENV 주입)
+      windows_pywinauto.py  # 검증대기: Ctrl+S export + 무인(ⓐ) 로그인·방오픈 골격 (셀렉터 ENV)
+      _credentials.py       # ⓐ 자격증명 로딩 (로컬 ID/PW, 비밀번호 비노출 — 미커밋)
       db_kakaocli.sh        # 실험적: kakaocli DB read -> CSV
   prompts/
     summary-styles.md       # 요약 스타일 프리셋 프롬프트
