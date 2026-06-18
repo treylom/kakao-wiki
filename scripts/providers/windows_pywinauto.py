@@ -58,19 +58,21 @@ def _require_creds():
     return creds
 
 
-def _login_via_keyboard(app, creds) -> None:
-    """ⓐ 자동 로그인: 로그인 화면이면 키보드로 ID→Tab→PW→Enter (좌표 클릭 ❌).
-    PW 는 KakaoTalk 입력창에만 들어가고 stdout/로그 echo 0. 이미 로그인(세션 유지)이면 즉시 반환.
-    🔬 실측 TODO(spike): 로그인 창 타이틀 정규식·필드 탭 순서·2FA 프롬프트 유무 확정."""
+def _login_if_needed(app) -> bool:
+    """ⓐ 자동 로그인: 로그인 화면이 떠 있을 때만 키보드로 ID→Tab→PW→Enter (좌표 클릭 ❌).
+    이미 로그인(세션 유지)이면 creds 없이 즉시 skip → 방오픈/export 만 단독 실측 가능.
+    자격증명은 로그인이 실제 필요할 때만 lazy 로드(_require_creds). PW 는 KakaoTalk 입력창에만
+    들어가고 stdout/로그 echo 0. 🔬 실측 TODO(spike): 로그인 창 타이틀·필드 탭 순서·2FA 유무."""
     from pywinauto.keyboard import send_keys  # type: ignore
     login_re = os.environ.get("KW_LOGIN_WINDOW_RE", ".*(로그인|Login).*")
     try:
         dlg = app.window(title_re=login_re)
         if not dlg.exists(timeout=int(os.environ.get("KW_LOGIN_WAIT_SEC", "3"))):
-            sys.stderr.write("[login] 로그인 창 없음 — 세션 유지로 간주(ⓑ-style)\n")
-            return
+            sys.stderr.write("[login] 로그인 창 없음 — 세션 유지로 간주(creds 불요)\n")
+            return False
     except Exception:
-        return
+        return False
+    creds = _require_creds()   # 로그인이 실제 필요할 때만 자격증명 요구
     dlg.set_focus()
     time.sleep(0.5)
     send_keys(creds.kakao_id, with_spaces=True)          # ID 화면 노출 OK (재경님 결정)
@@ -78,6 +80,7 @@ def _login_via_keyboard(app, creds) -> None:
     send_keys(creds.password.reveal(), with_spaces=True)  # PW: masked 입력, 로그 echo 0
     send_keys("{ENTER}")
     time.sleep(int(os.environ.get("KW_LOGIN_WAIT_SEC", "8")))
+    return True
 
 
 def _open_room_via_search(app, room: str) -> None:
@@ -102,10 +105,9 @@ def _unattended_prelude(room: str) -> None:
     ponytail: prelude 가 app 을 connect 하고 _export_via_ctrl_s 가 재-connect = 무해(idempotent).
     실측 후 단일 connect 로 합치고 싶으면 그때 리팩토링(현재는 명확성 우선)."""
     from pywinauto import Application  # type: ignore
-    creds = _require_creds()
     kakao_re = os.environ.get("KW_KAKAO_TITLE_RE", ".*(KakaoTalk|카카오톡).*")
     app = Application(backend="uia").connect(title_re=kakao_re, timeout=15)
-    _login_via_keyboard(app, creds)
+    _login_if_needed(app)   # 세션 유지면 creds 없이 skip → 방오픈+export 만 실측 가능
     _open_room_via_search(app, room)
 
 
