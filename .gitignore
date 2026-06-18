@@ -1,0 +1,22 @@
+# working output (collected chat data — never commit)
+out/
+*.raw.csv
+*.raw.txt
+*.normalized.json
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# os
+.DS_Store
+
+# local binaries
+kakaocli
+.build/
+
+# secrets
+.env
+*.token
