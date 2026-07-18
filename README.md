@@ -33,7 +33,7 @@ collect(방) → 정규화(normalize) → 저장소에 저장   (+ 선택: send(
 Windows 카카오톡은 로컬 대화 DB가 강하게 보호되어 있어(상용 보호기 패킹 + 자체 암호화) macOS처럼 앱 DB를 자동으로 직독하는 경로가 없습니다. 그래서 Windows의 **검증된 실용 경로**는 카카오톡 공식 **"대화 내보내기(.txt)"** 기반입니다:
 
 - **대화 검색이 목적이면** → [katok-windows](https://github.com/Hostingglobal-Tech/katok-windows)를 쓰세요. 내보낸 `.txt`를 색인해 keyword / BM25 / semantic 검색을 제공하는 CLI로, 공식 내보내기 기반의 안전·합법 경로만 담고 있습니다.
-- **위키 저장(이 스킬)이 목적이면** → 같은 공식 내보내기로 뽑은 `.txt`를 이 레포의 `normalize.py`에 그대로 넣으면 됩니다(`--raw export.txt` — txt 파싱은 best-effort, 포맷 변형 제보 환영). 내보내기 자체를 자동화하는 `windows` provider는 아래대로 여전히 spike-pending입니다.
+- **위키 저장(이 스킬)이 목적이면** → 같은 공식 내보내기로 뽑은 `.txt`를 이 레포의 `normalize.py`에 그대로 넣으면 됩니다(`python3 scripts/normalize.py --raw export.txt --out ./out` — txt 파싱은 best-effort, 포맷 변형 제보 환영). 내보내기 자체를 자동화하는 `windows` provider는 아래대로 여전히 spike-pending입니다.
 
 즉 Windows에서는 "공식 내보내기 → katok-windows로 검색 / kakao-wiki로 위키화"가 지금 바로 되는 조합입니다.
 

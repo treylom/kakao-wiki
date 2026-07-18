@@ -25,6 +25,11 @@ Design so a Windows spike is *minimal* (same philosophy as windows_pywinauto.py)
   `--i-have-verified-on-real-windows` AFTER confirming the flow works on a real machine.
   Checklist below + references/windows-provider-spike.md (send section).
 
+Exit codes: 0 = RESERVED (read-back-verified delivery — not implemented yet)
+            1 = bad args · 2 = honesty guard / non-Windows · 3 = missing pywinauto
+            5 = UI-layer failure (room/input assert 실패 포함 — 전송 안 됨)
+            6 = DISPATCHED_UNVERIFIED (keystrokes sent, delivery unverified)
+
 ⚠️ Single-session constraint: KakaoTalk allows one desktop session per account —
   same caveat as the collector (see README "무인 수집" note).
 """
@@ -58,26 +63,58 @@ def _clip_set(text: str) -> None:
     subprocess.run("clip", input=text.encode("utf-16"), check=True)
 
 
-def _open_room(room: str) -> None:
-    """Reuse the collector's search-based room-open (same ENV selectors)."""
+def _open_room(room: str):
+    """Open the target room via search — with literal-safe input and hard asserts.
+
+    Review fixes (손석희 2026-07-18):
+    - The room name goes through the CLIPBOARD (paste), never send_keys — pywinauto
+      interprets ^ + % { } as key sequences, so typing a room name literally is unsafe.
+    - After Enter we ASSERT the room chat window exists (KW_ROOM_TITLE_RE, default
+      re.escape(room)) and that a message-input (UIA Edit) is present & focused.
+      No paste/Enter ever happens before both asserts pass (wrong-room send guard)."""
+    import re as _re
     from pywinauto import Application  # type: ignore
-    import windows_pywinauto as wp
+    from pywinauto.keyboard import send_keys  # type: ignore
     title_re = os.environ.get("KW_KAKAO_TITLE_RE", ".*(KakaoTalk|카카오톡).*")
     app = Application(backend="uia").connect(title_re=title_re, timeout=10)
-    wp._open_room_via_search(app, room)
+    main = app.top_window()
+    main.set_focus()
+    send_keys(os.environ.get("KW_SEARCH_HOTKEY", "^f"))
+    time.sleep(0.7)
+    _clip_set(room)                                   # literal-safe search input
+    send_keys(os.environ.get("KW_PASTE_HOTKEY", "^v"))
+    time.sleep(0.7)
+    send_keys("{ENTER}")
+    time.sleep(float(os.environ.get("KW_INPUT_WAIT_SEC", "2")))
+    room_re = os.environ.get("KW_ROOM_TITLE_RE") or _re.escape(room)
+    win = app.window(title_re=room_re)
+    win.wait("exists ready", timeout=float(os.environ.get("KW_DIALOG_WAIT_SEC", "8")))
+    win.set_focus()
+    edits = win.descendants(control_type="Edit")
+    if not edits:
+        raise RuntimeError(
+            "message-input (UIA Edit) not found in the room window — spike item: "
+            "adjust KW_ROOM_TITLE_RE or note the extra focus step needed")
+    edits[-1].set_focus()
+    return win
+
+
+EXIT_DISPATCHED_UNVERIFIED = 6  # keystrokes sent, delivery NOT verified (no read-back yet)
 
 
 def send_message(room: str, msg: str) -> int:
     from pywinauto.keyboard import send_keys  # type: ignore
-    _open_room(room)
-    time.sleep(float(os.environ.get("KW_INPUT_WAIT_SEC", "2")))
+    _open_room(room)                                   # hard-asserts room + input focus
     _clip_set(msg)
     send_keys(os.environ.get("KW_PASTE_HOTKEY", "^v"))
     time.sleep(0.5)
     send_keys(os.environ.get("KW_SEND_KEY", "{ENTER}"))
-    # Tool-side "sent" is NOT proof (source-fact §2) — caller should read-back.
-    sys.stderr.write("[send] keystrokes dispatched — verify in the room (read-back manual for now)\n")
-    return 0
+    # Dispatch ≠ delivery (source-fact §2, 손석희 리뷰): until an automated read-back
+    # exists, return a distinct non-zero code so no caller can mistake this for
+    # verified success. Exit 0 is RESERVED for a future read-back-verified path.
+    sys.stderr.write("[send] DISPATCHED_UNVERIFIED (exit 6) — keystrokes sent to the "
+                     "asserted room window; verify delivery in the room manually.\n")
+    return EXIT_DISPATCHED_UNVERIFIED
 
 
 def main() -> int:
@@ -89,8 +126,9 @@ def main() -> int:
                     help="run for real AFTER completing the spike checklist")
     a = ap.parse_args()
 
-    if a.room.startswith("chat_"):
-        print("ERROR: send needs the room *name*, not a chat_id", file=sys.stderr)
+    room = a.room.strip()
+    if not room or room.startswith("chat_"):
+        print("ERROR: send needs a non-empty room *name*, not a chat_id", file=sys.stderr)
         return 1
     if a.message_file:
         msg = Path(a.message_file).read_text(encoding="utf-8")
@@ -113,7 +151,7 @@ def main() -> int:
                          "the checklist passes.\n")
         return 2
     try:
-        return send_message(a.room, msg)
+        return send_message(room, msg)
     except ImportError:
         print("ERROR: pip install pywinauto", file=sys.stderr)
         return 3

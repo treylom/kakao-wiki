@@ -26,20 +26,23 @@ def get_message(a) -> str:
 
 
 def send_kakao(room: str, msg: str) -> int:
+    room = (room or "").strip()
     if not room or room.startswith("chat_"):
-        print("ERROR: kakao 발신은 방 *이름* 만(chat_id ❌)", file=sys.stderr)
+        print("ERROR: kakao 발신은 비어있지 않은 방 *이름* 만(chat_id ❌)", file=sys.stderr)
         return 1
     if sys.platform == "win32":
         # Windows = providers/windows_send.py (pywinauto, ⚠️ spike-pending — 실기 검증 전
         # 기본 비-0 종료로 성공을 가장하지 않음. 검증 절차는 그 파일 SPIKE_CHECKLIST).
+        # 메시지는 stdin 으로 전달 — 자식 argv 에 본문 노출 금지(손석희 리뷰 major-3).
         cmd = [sys.executable, str(Path(__file__).parent / "providers" / "windows_send.py"),
-               "--room", room, "--message", msg]
+               "--room", room]
         # 스파이크 게이트 통제: 실기 검증을 마친 운영자만 KW_WINDOWS_SEND_VERIFIED=1 로 통과
         # (미설정 = windows_send.py 가 체크리스트 안내 후 비-0 종료 — 성공 가장 없음).
         if os.environ.get("KW_WINDOWS_SEND_VERIFIED") == "1":
             cmd.append("--i-have-verified-on-real-windows")
-        r = subprocess.run(cmd, capture_output=True, text=True)
+        r = subprocess.run(cmd, input=msg, capture_output=True, text=True)
         sys.stderr.write(r.stdout + r.stderr)
+        # exit 6 = DISPATCHED_UNVERIFIED — keystroke 는 나갔으나 delivery 미검증(성공 아님).
         return r.returncode
     # macOS: kmsg = KakaoTalk 전용 AX. 방 이름으로 검색→입력→전송.
     r = subprocess.run(["kmsg", "send", room, msg], capture_output=True, text=True)
