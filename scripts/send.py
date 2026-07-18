@@ -29,7 +29,19 @@ def send_kakao(room: str, msg: str) -> int:
     if not room or room.startswith("chat_"):
         print("ERROR: kakao 발신은 방 *이름* 만(chat_id ❌)", file=sys.stderr)
         return 1
-    # kmsg = KakaoTalk 전용 macOS AX. 방 이름으로 검색→입력→전송.
+    if sys.platform == "win32":
+        # Windows = providers/windows_send.py (pywinauto, ⚠️ spike-pending — 실기 검증 전
+        # 기본 비-0 종료로 성공을 가장하지 않음. 검증 절차는 그 파일 SPIKE_CHECKLIST).
+        cmd = [sys.executable, str(Path(__file__).parent / "providers" / "windows_send.py"),
+               "--room", room, "--message", msg]
+        # 스파이크 게이트 통제: 실기 검증을 마친 운영자만 KW_WINDOWS_SEND_VERIFIED=1 로 통과
+        # (미설정 = windows_send.py 가 체크리스트 안내 후 비-0 종료 — 성공 가장 없음).
+        if os.environ.get("KW_WINDOWS_SEND_VERIFIED") == "1":
+            cmd.append("--i-have-verified-on-real-windows")
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        sys.stderr.write(r.stdout + r.stderr)
+        return r.returncode
+    # macOS: kmsg = KakaoTalk 전용 AX. 방 이름으로 검색→입력→전송.
     r = subprocess.run(["kmsg", "send", room, msg], capture_output=True, text=True)
     sys.stderr.write(r.stdout + r.stderr)
     # 도구 "✓" 단독 신뢰 ❌(source-fact §2) — 호출측에서 read-back 권장(references).

@@ -37,6 +37,8 @@ Windows 카카오톡은 로컬 대화 DB가 강하게 보호되어 있어(상용
 
 즉 Windows에서는 "공식 내보내기 → katok-windows로 검색 / kakao-wiki로 위키화"가 지금 바로 되는 조합입니다.
 
+- **카카오톡으로 요약·링크 되보내기(send)** → Windows 채널(`scripts/providers/windows_send.py`, pywinauto)이 추가돼 있습니다 — 단 수집 provider와 같은 원칙으로 **실기 검증 전 spike-pending**(기본 비-0 종료, 검증 절차는 파일 안 체크리스트). macOS에서는 기존 kmsg 경로로 지금도 동작합니다.
+
 ---
 
 ## 준비물

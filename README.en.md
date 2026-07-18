@@ -33,6 +33,8 @@ KakaoTalk for Windows keeps its local chat DB strongly protected (commercial pac
 
 So on Windows, "official export → katok-windows for search / kakao-wiki for the wiki" is the combination that works today.
 
+- **Sending summaries/links back to KakaoTalk** → a Windows send channel now exists (`scripts/providers/windows_send.py`, pywinauto) — same honesty rule as the collector: **spike-pending until verified on a real machine** (non-zero exit by default; checklist inside the file). On macOS the existing kmsg path works today.
+
 ---
 
 ## Requirements

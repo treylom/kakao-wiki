@@ -5,9 +5,14 @@
 
 | 채널 | 전송 수단 | 메커니즘 | 대상 인자 | 인증 |
 |---|---|---|---|---|
-| **kakao** | `kmsg send <room> <msg>` | macOS Accessibility(AX) — **KakaoTalk 전용** | 방 *이름*(chat_id ❌) | macOS AX 권한 |
+| **kakao** | macOS: `kmsg send <room> <msg>` / Windows: `providers/windows_send.py`(⚠️ spike-pending) | macOS AX / Windows pywinauto — **KakaoTalk 전용** | 방 *이름*(chat_id ❌) | macOS AX 권한 / Windows: `KW_WINDOWS_SEND_VERIFIED=1`(실기 검증 후) |
 | **discord** | Bot REST `POST /channels/{id}/messages` | Discord Bot API | channel_id | `DISCORD_BOT_TOKEN` + **User-Agent 헤더 필수**(Cloudflare 1010 회피) |
 | **slack** | Incoming Webhook 또는 Slack MCP | Slack Web API | `#channel` | `SLACK_WEBHOOK_URL` 또는 MCP OAuth |
+
+## kakao (kmsg — macOS / windows_send — Windows, spike-pending)
+- **Windows**: `scripts/providers/windows_send.py` (pywinauto — 방 검색 열기 → 클립보드 UTF-16 붙여넣기 → Enter).
+  ⚠️ 실기 검증 전 spike-pending: 기본 비-0 종료, `--i-have-verified-on-real-windows` 로만 실행(수집 provider와 동일 정직 원칙).
+  send.py 의 kakao 채널이 `sys.platform == "win32"` 이면 자동으로 이 경로로 분기하며, 실기 검증을 마친 운영자가 `KW_WINDOWS_SEND_VERIFIED=1` 을 설정한 경우에만 스파이크 플래그가 전달된다(미설정 = 안내 + 비-0 종료).
 
 ## kakao (kmsg)
 - 방 *이름* 만 — `chat_id`(chat_xxx) 넣으면 SEARCH_MISS(aktofu #78). send.py 가 `chat_` prefix 거부.
