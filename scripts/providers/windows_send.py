@@ -86,7 +86,10 @@ def _open_room(room: str):
     time.sleep(0.7)
     send_keys("{ENTER}")
     time.sleep(float(os.environ.get("KW_INPUT_WAIT_SEC", "2")))
-    room_re = os.environ.get("KW_ROOM_TITLE_RE") or _re.escape(room)
+    # 앵커 필수(손석희 재검토): pywinauto title_re 는 regex.match(=prefix 매칭)라
+    # escape 만으로는 "room-other" 도 통과한다 → \A..\Z 로 정확 일치 강제.
+    # 제목에 접미사가 붙는 UI 는 KW_ROOM_TITLE_RE 로 명시 override.
+    room_re = os.environ.get("KW_ROOM_TITLE_RE") or rf"\A{_re.escape(room)}\Z"
     win = app.window(title_re=room_re)
     win.wait("exists ready", timeout=float(os.environ.get("KW_DIALOG_WAIT_SEC", "8")))
     win.set_focus()
