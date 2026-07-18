@@ -24,6 +24,15 @@ This repo does **not** pretend every path is production‑ready. Each provider s
 
 The `macos` path is the one to use. `windows`/`db` are shipped transparently so a contributor can finish them — they are **labeled, not hidden**.
 
+### On Windows today — katok-windows + official export (recommended)
+
+KakaoTalk for Windows keeps its local chat DB strongly protected (commercial packer + custom encryption), so there is no macOS-style automatic DB read. The **working, verified path on Windows** is KakaoTalk's official **"Export chat (.txt)"**:
+
+- **If you want search** → use [katok-windows](https://github.com/Hostingglobal-Tech/katok-windows), a CLI that indexes exported `.txt` files for keyword / BM25 / semantic search, shipping only the safe & legal official-export path.
+- **If you want the wiki pipeline (this skill)** → feed the same exported `.txt` straight into `normalize.py` (`--raw export.txt` — txt parsing is best-effort; format reports welcome). Automating the export itself (the `windows` provider) remains spike-pending as described below.
+
+So on Windows, "official export → katok-windows for search / kakao-wiki for the wiki" is the combination that works today.
+
 ---
 
 ## Requirements
