@@ -22,18 +22,32 @@ collect(방) → 정규화(normalize) → 저장소에 저장   (+ 선택: send(
 
 | provider | 하는 일 | OS | 상태 |
 |----------|---------|----|------|
-| `macos` (기본) | 카카오톡 GUI 내보내기 메뉴를 `osascript`(접근성)로 구동 → CSV 파싱 | macOS | ✅ **검증됨(GREEN)** — 실제 export 1회로 검증 (`references/macos-provider.md`) |
-| `windows` | `pywinauto`로 `Ctrl+S` 로컬 txt 저장 | Windows | ⚠️ **검증 대기(spike-pending)** — 셀렉터 비의존 로직은 구현 완료, **실제 윈도우 카카오톡 검증 전까지 성공을 가장하지 않음**(기본 비-0 종료) |
+| `macos` (macOS 기본) | 카카오톡 GUI 내보내기 메뉴를 `osascript`(접근성)로 구동 → CSV 파싱 | macOS | ✅ **검증됨(GREEN)** — 실제 export 1회로 검증 (`references/macos-provider.md`) |
+| `manual` (Windows/WSL 기본) | 사용자가 카카오톡에서 **Ctrl+S** 로 직접 내보낸 txt/csv 를 이어받아 처리 — `--input` 생략 시 기본 저장 경로 자동 탐색 | 전 OS | ✅ **GREEN** — 내보내기는 카카오톡 공식 기능, 이후는 결정론적 파서 |
+| `windows` | `pywinauto`로 내보내기 자동 구동 | Windows | ⚠️ **검증 대기(spike-pending)** — 셀렉터 비의존 로직은 구현 완료, **실제 윈도우 카카오톡 검증 전까지 성공을 가장하지 않음**(기본 비-0 종료) |
 | `db` | 로컬 카카오톡 DB를 `kakaocli`로 직접 읽기 | macOS(Win 미정) | 🧪 **실험적** — 호스트에서 `kakaocli` 키 유도가 성공해야 동작 |
 
-지금 바로 쓰려면 `macos` 경로를 쓰세요. `windows`/`db`는 **숨기지 않고 표시**해 둔 미완성 경로입니다(기여 환영).
+macOS 는 `macos`, Windows/WSL 은 `manual` 경로를 쓰세요. `windows`/`db`는 **숨기지 않고 표시**해 둔 미완성 경로입니다(기여 환영).
 
 ### Windows에서 지금 바로 쓰려면 — katok-windows + 공식 내보내기 (권장)
 
 Windows 카카오톡은 로컬 대화 DB가 강하게 보호되어 있어(상용 보호기 패킹 + 자체 암호화) macOS처럼 앱 DB를 자동으로 직독하는 경로가 없습니다. 그래서 Windows의 **검증된 실용 경로**는 카카오톡 공식 **"대화 내보내기(.txt)"** 기반입니다:
 
 - **대화 검색이 목적이면** → [katok-windows](https://github.com/Hostingglobal-Tech/katok-windows)를 쓰세요. 내보낸 `.txt`를 색인해 keyword / BM25 / semantic 검색을 제공하는 CLI로, 공식 내보내기 기반의 안전·합법 경로만 담고 있습니다.
-- **위키 저장(이 스킬)이 목적이면** → 같은 공식 내보내기로 뽑은 `.txt`를 이 레포의 `normalize.py`에 그대로 넣으면 됩니다(`python3 scripts/normalize.py --raw export.txt --out ./out` — txt 파싱은 best-effort, 포맷 변형 제보 환영). 내보내기 자체를 자동화하는 `windows` provider는 아래대로 여전히 spike-pending입니다.
+- **위키 저장(이 스킬)이 목적이면** → 같은 공식 내보내기로 뽑은 `.txt`를 `manual` provider 에 넣으면 됩니다:
+  ```bash
+  # Ctrl+S 로 저장한 파일 경로를 직접 지정하거나 —
+  python3 scripts/collect.py --room "<방이름>" --provider manual --input <저장한.txt> --out ./out
+  # 권장 위치(C:\Users\<이름>\.kakao-wiki\exports · 문서 · 다운로드)에 저장했다면 --input 생략(자동 탐색):
+  python3 scripts/collect.py --room "<방이름>" --provider manual --out ./out
+  ```
+  WSL 에서는 `C:\Users\<이름>\...` 가 `/mnt/c/Users/<이름>/...` 이며 `--input` 은 두 표기 모두 인식합니다.
+  파서는 PC 카톡의 `[이름] [오후 2:30]` 형식(날짜 구분선·여러 줄 메시지 포함)과 `2026. 6. 18. 오후 8:19, 이름 : 메시지` 형식을 모두 지원합니다. 내보내기 자체를 자동화하는 `windows` provider는 아래대로 여전히 spike-pending입니다.
+- **뭐부터 할지 모르겠으면** → 환경 진단 한 방:
+  ```bash
+  python3 scripts/windows_guide.py --room "<방이름>"
+  ```
+  Windows/WSL 감지 → Ctrl+S 단계 안내 → 내보내기 파일 자동 탐색 미리보기 → katok-windows 설치 감지·설치 명령 안내까지 출력합니다.
 
 즉 Windows에서는 "공식 내보내기 → katok-windows로 검색 / kakao-wiki로 위키화"가 지금 바로 되는 조합입니다.
 
@@ -70,8 +84,11 @@ cd kakao-wiki
 ```bash
 # macOS (기본, 검증됨):
 python3 scripts/collect.py --room "<ROOM>" --provider macos --out ./out
+
+# Windows / WSL (기본 = manual): 카카오톡에서 Ctrl+S 로 내보낸 txt 를 이어받음
+python3 scripts/collect.py --room "<ROOM>" --provider manual [--input <내보낸.txt>] --out ./out
 ```
-→ `out/<ROOM>-<DATE>.raw.csv` 와 `out/<ROOM>-<DATE>.normalized.json` 생성.
+→ `out/<ROOM>-<DATE>.raw.csv`(또는 .txt) 와 `out/<ROOM>-<DATE>.normalized.json` 생성.
 
 ### 2. 저장소에 저장
 ```bash

@@ -23,3 +23,6 @@ kakaocli
 credentials.env
 *.creds
 .kakao-wiki/
+
+# local spike scripts (personal env hard-coded — not for publish)
+scripts/step[0-9]_*.py

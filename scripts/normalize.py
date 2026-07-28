@@ -39,24 +39,89 @@ def parse_csv_rows(path: Path):
             yield dt, user, msg
 
 
-# KakaoTalk Windows txt export 라인: "2026. 6. 18. 오후 8:19, 홍길동 : 메시지" 형태 변형 다수.
-# 보편 패턴 1종 + fallback. (Windows 실 export 포맷은 spike 시 확정 — references/windows-provider-spike.md)
+# KakaoTalk Windows txt export 라인: "2026. 6. 18. 오후 8:19, 홍길동 : 메시지"
+# 2026-06-25 KST WSL2/Windows spike 기준. Header lines like "저장한 날짜 :" are skipped.
+TXT_WINDOWS_LINE_RE = re.compile(
+    r"^(?P<year>\d{4})\.\s*(?P<month>\d{1,2})\.\s*(?P<day>\d{1,2})\.\s*"
+    r"(?P<ampm>오전|오후)\s*(?P<hour>\d{1,2}):(?P<minute>\d{2}),\s*"
+    r"(?P<user>.+?)\s*:\s*(?P<msg>.*)$"
+)
+# KakaoTalk PC(Ctrl+S) txt export 라인: "[홍길동] [오후 8:19] 메시지"
+# 날짜는 라인에 없고 구분선("--------------- 2026년 7월 28일 월요일 ---------------")이 공급.
+TXT_PC_LINE_RE = re.compile(
+    r"^\[(?P<user>[^\]]{1,40})\]\s*\[(?P<ampm>오전|오후)\s*(?P<hour>\d{1,2}):(?P<minute>\d{2})\]\s?(?P<msg>.*)$"
+)
+TXT_DATE_HEADER_RE = re.compile(
+    r"(?P<year>\d{4})년\s*(?P<month>\d{1,2})월\s*(?P<day>\d{1,2})일"
+)
 TXT_LINE_RE = re.compile(r"^\[?(?P<user>[^\]:,]{1,40})[\]]?\s*[,:]\s*(?P<rest>.+)$")
 
 
+def _windows_dt(match: re.Match) -> str:
+    hour = int(match.group("hour"))
+    if match.group("ampm") == "오후" and hour != 12:
+        hour += 12
+    if match.group("ampm") == "오전" and hour == 12:
+        hour = 0
+    return (
+        f"{int(match.group('year')):04d}-{int(match.group('month')):02d}-"
+        f"{int(match.group('day')):02d} {hour:02d}:{int(match.group('minute')):02d}:00"
+    )
+
+
+def _pc_dt(cur_date: str, match: re.Match) -> str:
+    hour = int(match.group("hour"))
+    if match.group("ampm") == "오후" and hour != 12:
+        hour += 12
+    if match.group("ampm") == "오전" and hour == 12:
+        hour = 0
+    hm = f"{hour:02d}:{int(match.group('minute')):02d}:00"
+    return f"{cur_date} {hm}" if cur_date else ""
+
+
 def parse_txt_rows(path: Path):
-    """범용 txt fallback — 라인 단위. (Windows export 포맷 확정 전 best-effort, spike-pending)"""
+    """KakaoTalk txt export — Windows/PC(Ctrl+S) formats first, then legacy fallback.
+
+    PC(Ctrl+S) 포맷은 라인에 날짜가 없어 날짜 구분선을 상태로 유지하고,
+    어떤 패턴에도 안 걸리는 라인은 직전 메시지의 연속(멀티라인)으로 병합한다.
+    """
+    cur_date = ""       # PC 포맷용 현재 날짜 (YYYY-MM-DD)
+    pending = None      # 직전 메시지 [dt, user, msg] — 멀티라인 병합 대상
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         line = line.rstrip()
         if not line:
             continue
-        # 날짜 헤더 라인 스킵
-        if re.match(r"^\d{4}[.\-/]", line) and "," not in line:
+        # 날짜/저장 정보 헤더 라인 스킵
+        if line.startswith(("저장한 날짜", "채팅방 이름", "대화 상대")) or "님과 카카오톡 대화" in line:
+            continue
+        # 날짜 구분선/단독 날짜 라인 → 현재 날짜 갱신 (메시지 아님)
+        dm = TXT_DATE_HEADER_RE.search(line)
+        if dm and not TXT_WINDOWS_LINE_RE.match(line) and not TXT_PC_LINE_RE.match(line):
+            cur_date = f"{int(dm.group('year')):04d}-{int(dm.group('month')):02d}-{int(dm.group('day')):02d}"
+            continue
+        wm = TXT_WINDOWS_LINE_RE.match(line)
+        if wm:
+            if pending:
+                yield tuple(pending)
+            pending = [_windows_dt(wm), wm.group("user").strip(), wm.group("msg").strip()]
+            continue
+        pm = TXT_PC_LINE_RE.match(line)
+        if pm:
+            if pending:
+                yield tuple(pending)
+            pending = [_pc_dt(cur_date, pm), pm.group("user").strip(), pm.group("msg").strip()]
             continue
         m = TXT_LINE_RE.match(line)
-        if not m:
+        if m:
+            if pending:
+                yield tuple(pending)
+            pending = ["", m.group("user").strip(), m.group("rest").strip()]
             continue
-        yield "", m.group("user").strip(), m.group("rest").strip()
+        # 어떤 패턴에도 안 걸림 → 직전 메시지의 연속 라인(멀티라인 메시지)
+        if pending:
+            pending[2] = pending[2] + "\n" + line
+    if pending:
+        yield tuple(pending)
 
 
 def normalize(raw: Path, since: str | None):

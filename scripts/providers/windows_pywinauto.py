@@ -1,33 +1,125 @@
 #!/usr/bin/env python3
-"""windows_pywinauto.py — kakao-wiki Windows provider (⚠️ SPIKE-PENDING until verified).
+"""windows_pywinauto.py — kakao-wiki Windows provider (live replay blocked in Codex sandbox).
 
 Goal: real KakaoTalk-on-Windows chat export, the macOS provider's counterpart.
-Path: `Ctrl+S` → local .txt save (graded 🟢 — simpler than KakaoTalk's macOS menu chain).
+Path measured by user on 2026-06-25 KST:
+  tray restore → login window title "카카오톡" → Edit[1] password →
+  main search "나와의 채팅" → room ≡ menu → 대화 내보내기 → 텍스트만 저장.
 
-Design so a Windows spike is *minimal*:
-  - Everything that does NOT depend on UI selectors is fully implemented here:
-    save-dialog path injection, file polling, room verification, txt normalization handoff.
-  - The ONLY spike-dependent bits are the window/control selectors, exposed as ENV VARS
-    so the spike operator never edits code:
+Design:
+  - Measured stable selectors are defaults:
+        class_name          EVA_Window
+        title/login title   카카오톡
+        login password      second Edit control
+  - Custom-draw controls fall back to coordinate offsets, exposed as ENV VARS:
         KW_KAKAO_TITLE_RE   window title regex for the KakaoTalk main/app window
                             (default matches both EN/KR: ".*(KakaoTalk|카카오톡).*")
         KW_ROOM_TITLE_RE    chat-room window title regex (default = the room name)
-        KW_SAVE_HOTKEY      save hotkey (default "^s")
+        KW_MORE_X_FROM_RIGHT / KW_MORE_Y_FROM_TOP
+        KW_EXPORT_MENU_X / KW_EXPORT_MENU_Y
+        KW_TEXT_ONLY_X / KW_TEXT_ONLY_Y
         KW_DIALOG_WAIT_SEC  seconds to wait for the save dialog (default 8)
         KW_FILE_WAIT_SEC    seconds to wait for the file to land (default 30)
 
 🚨 HONESTY GUARD (source-fact §4):
-  Not yet verified on real KakaoTalk Windows. The selectors above are *assumptions*.
-  Default run = guidance + non-zero exit (never fakes success). The spike operator runs
-  with `--i-have-verified-on-real-windows` AFTER confirming the hotkey + selectors work.
-  Checklist: references/windows-provider-spike.md
+  Codex sandbox could not launch Windows executables (`UtilBindVsockAnyPort`), so this
+  file is syntax/unit verified but not scenario-replayed by this session. Do not claim
+  live GREEN until step scripts produce screenshots + export path.
 """
 from __future__ import annotations
 import argparse, os, sys, time
-from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # = providers/ (_credentials 위치)
+
+KAKAO_CLASS = "EVA_Window"
+KAKAO_TITLE = "카카오톡"
+MEASURED_AT_KST = "2026-06-25"
+
+
+def default_login_window_re() -> str:
+    """Measured on Windows KakaoTalk 2026-06-25 KST: login title is also '카카오톡'."""
+    return KAKAO_TITLE
+
+
+def to_windows_path(path: Path | str) -> str:
+    """Convert WSL /mnt/<drive>/... paths for Windows Python dialogs."""
+    s = str(path)
+    if s.startswith("/mnt/") and len(s) > 6 and s[6] == "/":
+        drive = s[5].upper()
+        rest = s[7:].replace("/", "\\")
+        return f"{drive}:\\{rest}"
+    return s.replace("/", "\\") if os.name == "nt" else s
+
+
+def windows_data_root() -> Path:
+    return Path(os.environ.get("KW_DATA_ROOT", str(Path.home() / ".kakao-wiki")))
+
+
+def screenshot_path(name: str) -> Path:
+    path = windows_data_root() / "screenshots" / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def export_dir() -> Path:
+    path = Path(os.environ.get("KW_EXPORT_DIR", str(windows_data_root() / "exports")))
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def find_kakao_hwnd() -> int:
+    import ctypes
+
+    user32 = ctypes.windll.user32
+    return int(user32.FindWindowW(KAKAO_CLASS, KAKAO_TITLE))
+
+
+def restore_kakao_window() -> int:
+    """Restore tray-minimized KakaoTalk window and bring it forward."""
+    import ctypes
+
+    hwnd = find_kakao_hwnd()
+    if not hwnd:
+        raise RuntimeError(f'KakaoTalk window not found: class={KAKAO_CLASS!r}, title={KAKAO_TITLE!r}')
+    user32 = ctypes.windll.user32
+    user32.ShowWindow(hwnd, 9)  # SW_RESTORE, measured path for tray-hidden KakaoTalk.
+    time.sleep(0.3)
+    try:
+        user32.AllowSetForegroundWindow(-1)
+    except Exception:
+        pass
+    user32.SetForegroundWindow(hwnd)
+    time.sleep(0.8)
+    return hwnd
+
+
+def kakao_app_from_hwnd(hwnd: int):
+    from pywinauto import Application  # type: ignore
+
+    return Application(backend="uia").connect(handle=hwnd, timeout=10)
+
+
+def window_from_hwnd(hwnd: int):
+    app = kakao_app_from_hwnd(hwnd)
+    return app.window(handle=hwnd)
+
+
+def capture_window(hwnd: int, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        win = window_from_hwnd(hwnd)
+        win.capture_as_image().save(str(path))
+        return
+    except Exception:
+        pass
+    try:
+        from PIL import ImageGrab  # type: ignore
+
+        ImageGrab.grab().save(str(path))
+        return
+    except Exception as exc:
+        raise RuntimeError(f"screenshot failed: {exc}") from exc
 
 SPIKE_CHECKLIST = """\
 [Windows spike — do all before reporting 'works']
@@ -64,7 +156,7 @@ def _login_if_needed(app) -> bool:
     자격증명은 로그인이 실제 필요할 때만 lazy 로드(_require_creds). PW 는 KakaoTalk 입력창에만
     들어가고 stdout/로그 echo 0. 🔬 실측 TODO(spike): 로그인 창 타이틀·필드 탭 순서·2FA 유무."""
     from pywinauto.keyboard import send_keys  # type: ignore
-    login_re = os.environ.get("KW_LOGIN_WINDOW_RE", ".*(로그인|Login).*")
+    login_re = os.environ.get("KW_LOGIN_WINDOW_RE", default_login_window_re())
     try:
         dlg = app.window(title_re=login_re)
         if not dlg.exists(timeout=int(os.environ.get("KW_LOGIN_WAIT_SEC", "3"))):
@@ -75,9 +167,17 @@ def _login_if_needed(app) -> bool:
     creds = _require_creds()   # 로그인이 실제 필요할 때만 자격증명 요구
     dlg.set_focus()
     time.sleep(0.5)
-    send_keys(creds.kakao_id, with_spaces=True)          # ID 화면 노출 OK (재경님 결정)
-    send_keys("{TAB}")
-    send_keys(creds.password.reveal(), with_spaces=True)  # PW: masked 입력, 로그 echo 0
+    try:
+        edits = dlg.descendants(control_type="Edit")
+        if len(edits) >= 2:
+            # 2026-06-25 KST 실측: login window is custom-draw, Edit[0]=ID combo, Edit[1]=PW.
+            edits[1].click_input()
+            edits[1].set_focus()
+        else:
+            send_keys("{TAB}")
+    except Exception:
+        send_keys("{TAB}")
+    send_keys(creds.password.reveal(), with_spaces=True, vk_packet=True)  # PW: masked 입력, 로그 echo 0
     send_keys("{ENTER}")
     time.sleep(int(os.environ.get("KW_LOGIN_WAIT_SEC", "8")))
     return True
@@ -105,6 +205,7 @@ def _unattended_prelude(room: str) -> None:
     ponytail: prelude 가 app 을 connect 하고 _export_via_ctrl_s 가 재-connect = 무해(idempotent).
     실측 후 단일 connect 로 합치고 싶으면 그때 리팩토링(현재는 명확성 우선)."""
     from pywinauto import Application  # type: ignore
+    restore_kakao_window()
     kakao_re = os.environ.get("KW_KAKAO_TITLE_RE", ".*(KakaoTalk|카카오톡).*")
     app = Application(backend="uia").connect(title_re=kakao_re, timeout=15)
     _login_if_needed(app)   # 세션 유지면 creds 없이 skip → 방오픈+export 만 실측 가능
@@ -124,57 +225,91 @@ def _verify_room_in_file(path: Path, room: str) -> bool:
     return norm(room) in norm(head)
 
 
-def _export_via_ctrl_s(room: str, out_dir: Path) -> Path:
-    """Real export flow. Selector-dependent steps read ENV; everything else is complete."""
+def _wait_for_new_txt(out_dir: Path, started_at: float, file_wait: int) -> Path:
+    deadline = time.time() + file_wait
+    while time.time() < deadline:
+        candidates = sorted(
+            (p for p in out_dir.glob("*.txt") if p.stat().st_mtime >= started_at and p.stat().st_size > 0),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+        if candidates:
+            return candidates[0]
+        time.sleep(0.5)
+    raise RuntimeError(f"export file not found after {file_wait}s in {out_dir}")
+
+
+def _click_room_more_menu(win) -> None:
+    from pywinauto import mouse  # type: ignore
+
+    rect = win.rectangle()
+    x = rect.right - int(os.environ.get("KW_MORE_X_FROM_RIGHT", "34"))
+    y = rect.top + int(os.environ.get("KW_MORE_Y_FROM_TOP", "46"))
+    mouse.click(coords=(x, y))
+    time.sleep(0.8)
+
+
+def _click_menu_text_or_coord(app, win, text_re: str, x_env: str, y_env: str, default_x: int, default_y: int) -> None:
+    from pywinauto import mouse  # type: ignore
+
+    try:
+        item = app.window(title_re=text_re)
+        if item.exists(timeout=1):
+            item.click_input()
+            time.sleep(0.8)
+            return
+    except Exception:
+        pass
+    rect = win.rectangle()
+    x = rect.left + int(os.environ.get(x_env, str(default_x)))
+    y = rect.top + int(os.environ.get(y_env, str(default_y)))
+    mouse.click(coords=(x, y))
+    time.sleep(0.8)
+
+
+def _save_dialog_to_dir(app, out_dir: Path, file_wait: int, started_at: float) -> Path:
     from pywinauto import Application          # type: ignore
     from pywinauto.keyboard import send_keys   # type: ignore
 
+    del Application
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_dir_win = to_windows_path(out_dir)
+    dlg_wait = int(os.environ.get("KW_DIALOG_WAIT_SEC", "8"))
+    try:
+        dlg = app.window(title_re=".*(저장|Save).*")
+        dlg.wait("exists ready", timeout=dlg_wait)
+        dlg.set_focus()
+    except Exception:
+        pass
+    # Keep KakaoTalk's suggested filename, only move the save dialog to the export directory.
+    send_keys("%d")
+    time.sleep(0.2)
+    send_keys(out_dir_win, with_spaces=True, vk_packet=True)
+    send_keys("{ENTER}")
+    time.sleep(0.8)
+    send_keys("{ENTER}")
+    return _wait_for_new_txt(out_dir, started_at, file_wait)
+
+
+def _export_via_menu(room: str, out_dir: Path) -> Path:
+    """Real export flow: room window ≡ → 대화 내보내기 → 텍스트만 저장."""
+    from pywinauto import Application          # type: ignore
+
     kakao_re = os.environ.get("KW_KAKAO_TITLE_RE", ".*(KakaoTalk|카카오톡).*")  # EN+KR locale
     room_re  = os.environ.get("KW_ROOM_TITLE_RE", f".*{room}.*")
-    hotkey   = os.environ.get("KW_SAVE_HOTKEY", "^s")
-    dlg_wait = int(os.environ.get("KW_DIALOG_WAIT_SEC", "8"))
     file_wait = int(os.environ.get("KW_FILE_WAIT_SEC", "30"))
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    target = out_dir / f"{room}-{date.today().isoformat()}.raw.txt"
-    if target.exists():
-        target.unlink()
-
     app = Application(backend="uia").connect(title_re=kakao_re, timeout=10)
     win = app.window(title_re=room_re)
     win.set_focus()
     time.sleep(0.5)
-    win.type_keys(hotkey)  # Ctrl+S → save-as dialog
+    started_at = time.time()
+    _click_room_more_menu(win)
+    _click_menu_text_or_coord(app, win, ".*대화.*내보내기.*", "KW_EXPORT_MENU_X", "KW_EXPORT_MENU_Y", 260, 180)
+    _click_menu_text_or_coord(app, win, ".*텍스트.*저장.*", "KW_TEXT_ONLY_X", "KW_TEXT_ONLY_Y", 210, 240)
+    target = _save_dialog_to_dir(app, out_dir, file_wait, started_at)
 
-    # Save dialog (standard Win32 "Save As"): type the absolute path into the filename edit
-    # and confirm. We drive it by keystrokes so it works even if the dialog's controls are
-    # not richly UIA-exposed: select-all, type path, Enter.
-    time.sleep(min(dlg_wait, 3))
-    try:
-        dlg = app.window(title_re=".*(저장|Save).*")
-        dlg.wait("exists ready", timeout=dlg_wait)
-        edits = dlg.descendants(control_type="Edit")
-        if edits:
-            edits[0].set_focus()
-            send_keys("^a")
-            send_keys(str(target).replace(" ", "{SPACE}"), with_spaces=True)
-        send_keys("{ENTER}")
-    except Exception:
-        # Dialog not matched by title — fall back to blind keystrokes (operator confirms in spike)
-        send_keys("^a")
-        send_keys(str(target), with_spaces=True)
-        send_keys("{ENTER}")
-
-    # Poll for the file to land
-    deadline = time.time() + file_wait
-    while time.time() < deadline:
-        if target.exists() and target.stat().st_size > 0:
-            break
-        time.sleep(0.5)
-    if not (target.exists() and target.stat().st_size > 0):
-        raise RuntimeError(f"export file not found after {file_wait}s: {target}")
-
-    # Room verification (selector-free, fail-fast like the macOS CSV assert)
     if not _verify_room_in_file(target, room):
         raise RuntimeError(f"room assert FAILED — exported file does not mention '{room}': {target}")
     return target
@@ -202,7 +337,7 @@ def main() -> int:
     try:
         if a.unattended:
             _unattended_prelude(a.room)   # ⓐ auto-login + auto-open room (spike-gated)
-        path = _export_via_ctrl_s(a.room, Path(a.out))
+        path = _export_via_menu(a.room, Path(a.out))
     except Exception as e:  # noqa: BLE001 — surface the real failure to the spike operator
         print(f"\n❌ export failed: {type(e).__name__}: {e}")
         print("→ adjust KW_KAKAO_TITLE_RE / KW_ROOM_TITLE_RE / KW_SAVE_HOTKEY and retry (see spike doc).")

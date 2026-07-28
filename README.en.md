@@ -29,7 +29,20 @@ The `macos` path is the one to use. `windows`/`db` are shipped transparently so 
 KakaoTalk for Windows keeps its local chat DB strongly protected (commercial packer + custom encryption), so there is no macOS-style automatic DB read. The **working, verified path on Windows** is KakaoTalk's official **"Export chat (.txt)"**:
 
 - **If you want search** → use [katok-windows](https://github.com/Hostingglobal-Tech/katok-windows), a CLI that indexes exported `.txt` files for keyword / BM25 / semantic search, shipping only the safe & legal official-export path.
-- **If you want the wiki pipeline (this skill)** → feed the same exported `.txt` straight into `normalize.py` (`python3 scripts/normalize.py --raw export.txt --out ./out` — txt parsing is best-effort; format reports welcome). Automating the export itself (the `windows` provider) remains spike-pending as described below.
+- **If you want the wiki pipeline (this skill)** → feed the same exported `.txt` (Ctrl+S in the chat window) into the `manual` provider:
+  ```bash
+  # point at the exported file directly —
+  python3 scripts/collect.py --room "<ROOM>" --provider manual --input <exported.txt> --out ./out
+  # or save exports into C:\Users\<you>\.kakao-wiki\exports (or Documents/Downloads) and omit --input (auto-discovery):
+  python3 scripts/collect.py --room "<ROOM>" --provider manual --out ./out
+  ```
+  On WSL, `C:\Users\<you>\...` is `/mnt/c/Users/<you>/...` — `--input` accepts both spellings.
+  The parser supports both the PC `[Name] [PM 2:30]`-style export (date separators, multi-line messages) and the `2026. 6. 18. PM 8:19, Name : message` style. Automating the export itself (the `windows` provider) remains spike-pending as described below.
+- **Not sure where to start** → run the one-shot environment guide:
+  ```bash
+  python3 scripts/windows_guide.py --room "<ROOM>"
+  ```
+  It detects Windows/WSL, prints the Ctrl+S steps, previews auto-discovered exports, and checks for katok-windows (with install commands if missing).
 
 So on Windows, "official export → katok-windows for search / kakao-wiki for the wiki" is the combination that works today.
 
