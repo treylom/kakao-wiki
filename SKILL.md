@@ -36,6 +36,10 @@ automatically**, and **if you build a cited summary, run the citation gate first
 > collection-and-digest pipeline: a GUI-export recipe, a message parser, and the
 > length/citation gates that pipeline learned it needed the expensive way.
 > Design rationale + Windows feasibility grading: `references/architecture.md`.
+> How that production pipeline runs today (schedule, gates, failure paths, and which parts
+> this skill does *not* ship): `docs/WORKFLOW.md`. Note: it now collects by reading the
+> messenger's local DB directly, with GUI export as fallback — that does **not** promote
+> this skill's `db` provider, which stays experimental.
 
 ## ⚠️ Honesty contract (status labels are earned, not assumed)
 - **macOS provider = GREEN** — verified by a real KakaoTalk export run (see `references/macos-provider.md` → "Verification log").

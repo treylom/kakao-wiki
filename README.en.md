@@ -4,6 +4,8 @@ Turn a **KakaoTalk** chat room into a structured note in your local Obsidian / L
 
 (한국어 README: [README.md](README.md))
 
+📈 How the production pipeline behind this skill actually runs twice a day (chart + step-by-step spec, in Korean): [docs/WORKFLOW.md](docs/WORKFLOW.md)
+
 The workflow is six stages; the middle three are optional. What sets this skill apart is that the **verify (4)** slot — the one home‑grown pipelines routinely skip and regret — is filled with real gates:
 
 ```
