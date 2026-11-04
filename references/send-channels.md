@@ -15,9 +15,9 @@
   send.py 의 kakao 채널이 `sys.platform == "win32"` 이면 자동으로 이 경로로 분기하며, 실기 검증을 마친 운영자가 `KW_WINDOWS_SEND_VERIFIED=1` 을 설정한 경우에만 스파이크 플래그가 전달된다(미설정 = 안내 + 비-0 종료).
 
 ## kakao (kmsg)
-- 방 *이름* 만 — `chat_id`(chat_xxx) 넣으면 SEARCH_MISS(aktofu #78). send.py 가 `chat_` prefix 거부.
-- ⚠️ **"✓ sent" 단독 신뢰 ❌**(source-fact §2) — 호출측에서 read-back(방 창 캡처/`kmsg read --json` 최신 author "(me)") 권장. 이미지 발신은 텍스트 read 로 안 보이니 screencapture.
-- ⚠️ 극단 종횡비 이미지 silent-drop — 표지류는 4:5 레터박스 변환 후 전송(aktofu prep-kakao-cover 패턴).
+- 방 *이름* 만 — `chat_id`(chat_xxx) 넣으면 SEARCH_MISS(kmsg 검색은 방 이름 기반). send.py 가 `chat_` prefix 거부.
+- ⚠️ **"✓ sent" 단독 신뢰 ❌**(honesty rule) — 호출측에서 read-back(방 창 캡처/`kmsg read --json` 최신 author "(me)") 권장. 이미지 발신은 텍스트 read 로 안 보이니 screencapture.
+- ⚠️ 극단 종횡비 이미지 silent-drop — 표지류는 4:5 레터박스 변환 후 전송(cover-prep 패턴).
 - precondition: loggedIn + 채팅 탭(Cmd+2) + 방 대화창 오픈(검색-리스트 ❌).
 
 ## discord (Bot REST)

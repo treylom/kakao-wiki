@@ -8,7 +8,7 @@ Windows 카톡은 대화창에서 **`Ctrl+S` → 내 컴퓨터에 txt 저장**�
 키 입력 1발 + 저장 다이얼로그 Enter + 파일 폴링이면 끝 → Mac 의 다단 메뉴 흐름보다 오히려 쉽다.
 (대안: 메뉴 "모든 메시지 내부저장소 저장"=🟡, "텍스트만 보내기"=이메일=🟠, DB 직접=⚪.)
 
-## 🚨 왜 spike-pending인가 (source-fact §4)
+## 🚨 왜 spike-pending인가 (honesty rule)
 - KakaoTalk **Windows UI 요소(창 타이틀·컨트롤 식별자)는 Mac 과 다르다** → Mac 셀렉터 전부 무효.
 - 저장 다이얼로그 구조·파일명 패턴(`KakaoTalk_<방>_<ts>.txt`?)은 실기에서 확인 필요.
 - 한국 앱은 custom-draw UI 가 흔해 UIA 노출이 약한 컨트롤이 있을 수 있음 → 키 입력/이미지 폴백 대비.
@@ -43,7 +43,7 @@ Windows 카톡은 대화창에서 **`Ctrl+S` → 내 컴퓨터에 txt 저장**�
 실행: `python scripts\providers\windows_pywinauto.py --room "<방>" --out .\out --i-have-verified-on-real-windows`
 (미검증 시 플래그 없이 돌리면 체크리스트 출력 + exit 4 = 성공 가장 없음.)
 
-## 무인(ⓐ) 추가 spike — 로그인·방 자동오픈 (재경님 결정 2026-06-19)
+## 무인(ⓐ) 추가 spike — 로그인·방 자동오픈 (설계 결정, 2026-06)
 기존 체크리스트(1~7)는 *방이 이미 열린* export 만 검증한다. 무인(ⓐ)은 그 앞에 2개 더:
 
 8. **자동 로그인(ⓐ)**: 다른 기기가 세션을 가져간 뒤 이 Windows 에서 KakaoTalk 재실행 →
@@ -58,7 +58,7 @@ Windows 카톡은 대화창에서 **`Ctrl+S` → 내 컴퓨터에 txt 저장**�
 ## 현재 상태 (2026-06-19 하드닝)
 - code: **셀렉터 비의존 로직 전부 구현 완료** — 저장 다이얼로그 경로 주입(키입력 폴백)·파일 폴링·**방 검증(export 헤더 NFC substring, 불일치 시 fail-fast)**·`.raw.txt` 산출(normalize.py txt 파서 정합). 셀렉터/단축키만 ENV 로 스파이크서 확정.
 - verification: **0 (Windows 실기 미실행)** — Mac 에서 셀렉터 유도 불가가 유일 잔여.
-- 분류: `spike-pending`. 루돌프(WSL/Windows) 또는 재경님 Windows 1회 실 export 성공 → 위 7번 절차로 GREEN 승격.
+- 분류: `spike-pending`. WSL/Windows 사용자의 1회 실 export 성공 → 위 7번 절차로 GREEN 승격.
 - ⚠️ Ctrl+S 자체가 KakaoTalk Windows 에서 저장 다이얼로그를 띄우는지부터 스파이크 1번에서 확인(안 되면 메뉴 경로 `KW_SAVE_HOTKEY` 또는 메뉴 클릭으로 전환 — 담당자 보고).
 
 

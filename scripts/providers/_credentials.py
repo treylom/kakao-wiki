@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """_credentials.py — kakao-wiki credential loading (ⓐ user-credential model).
 
-재경님 결정(2026-06-19): 코드가 로그인하되 ID/PW 는 *사용자가 로컬에 설정*한다.
+설계 결정 (2026-06): 코드가 로그인하되 ID/PW 는 *사용자가 로컬에 설정*한다.
   - 공개 레포에 비밀번호 미저장.
   - 비밀번호는 KakaoTalk 입력창에만 들어가고, stdout/stderr/로그/Discord 어디에도 echo 하지 않는다.
 

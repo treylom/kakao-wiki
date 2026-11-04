@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """normalize.py — KakaoTalk export(CSV or txt) → normalized messages JSON.
 
-GUI 무관 순수 파서. aktofu step2-analyze.py 의 파싱·봇/공지 필터를 *복제·일반화*
+GUI 무관 순수 파서. 프로덕션 파이프라인의 메시지 파서·봇/공지 필터를 *복제·일반화*
 (토픽 분석은 제외 — 본 스킬은 범용 수집이라 normalized 메시지까지만 생성).
 
 Usage:
@@ -11,7 +11,7 @@ from __future__ import annotations
 import argparse, csv, json, re, sys, unicodedata
 from pathlib import Path
 
-# 오픈채팅 봇 발화 / 입퇴장·시스템 공지 = 수집 제외 (aktofu P1 동일).
+# 오픈채팅 봇 발화 / 입퇴장·시스템 공지 = 수집 제외.
 BOT_SENDERS = {"opencrab", "오픈크랩", "오픈크랩봇", "방봇", "open crab", "오픈채팅봇"}
 ANNOUNCE_RE = re.compile(
     r"(님이\s*(들어왔|나갔|입장|퇴장)|님을\s*내보냈|방장.{0,6}(위임|변경|되셨|넘)|"

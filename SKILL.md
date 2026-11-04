@@ -2,27 +2,42 @@
 name: kakao-wiki
 description: >-
   Collect a KakaoTalk chat room's conversation history, normalize it into structured
-  messages, store it into your local Obsidian/LLM-wiki vault, and (optionally) send a
-  summary out to KakaoTalk / Discord / Slack. Mirrors the proven aktofu collection
-  recipe as a portable, installable skill with a provider abstraction:
+  messages, store it into your local Obsidian/LLM-wiki vault, and (optionally) summarize
+  and send a digest out to KakaoTalk / Discord / Slack. A portable, installable skill
+  built around the common summarize-and-send workflow, with a provider abstraction and
+  built-in pre-send verification gates (message length + quote citation).
   macOS(osascript GUI export) is the GREEN/default path; manual(user-exported txt via
   Ctrl+S — Windows/WSL today-path) is GREEN; Windows(pywinauto auto-export) ships as an
   experimental scaffold; a DB-direct(kakaocli) path is provided as an opt-in experiment.
-  Use when the user wants to "collect a KakaoTalk room", "turn a kakao chat into my
-  wiki", "set up kakao-wiki", "export kakaotalk to obsidian", "use kakao-wiki on
-  Windows/WSL", or "automate a kakao chat digest".
+  Use when the user wants to "collect a KakaoTalk room", "summarize a kakao chat", "turn
+  a kakao chat into my wiki", "set up kakao-wiki", "export kakaotalk to obsidian", "use
+  kakao-wiki on Windows/WSL", or "automate a kakao chat digest".
 ---
 
-# kakao-wiki — KakaoTalk → normalized → vault, with multi-channel send
+# kakao-wiki — collect → summarize → verify → send, KakaoTalk to your vault
 
-This skill packages the aktofu KakaoTalk collection pipeline as a **portable, installable** skill.
-It does **one provider-abstracted job**: `collect(room) → normalized messages → store to vault`, plus an optional `send(channel, msg)`.
+This skill packages the common **"summarize a chat room and send it out"** workflow as a
+**portable, installable** skill, with a provider abstraction for collection and
+**built-in verification gates** so a digest can't go out silently truncated or with a
+misquoted line.
+
+The pipeline is six stages; the middle ones are optional depending on what you want:
+
+```
+1 collect → 2 normalize → 3 summarize → 4 verify → 5 send → 6 record
+  (provider)  (parser)     (optional)    (gates)    (optional) (to vault)
+```
+
+Only **collect → normalize** is mandatory (you always need messages first). Summarize,
+verify, send and record are opt-in — but **if you send a summary, the length gate runs
+automatically**, and **if you build a cited summary, run the citation gate first.**
 
 > **Provenance.** Generalized (copied, NOT live-modified) from a production KakaoTalk
-> collection pipeline: a GUI-export recipe, a message parser, and citation/topic quality gates.
+> collection-and-digest pipeline: a GUI-export recipe, a message parser, and the
+> length/citation gates that pipeline learned it needed the expensive way.
 > Design rationale + Windows feasibility grading: `references/architecture.md`.
 
-## ⚠️ Honesty contract (source-fact §4)
+## ⚠️ Honesty contract (status labels are earned, not assumed)
 - **macOS provider = GREEN** — verified by a real KakaoTalk export run (see `references/macos-provider.md` → "Verification log").
 - **Windows provider = `spike-pending` / experimental** — code-complete *scaffold* only. The KakaoTalk
   Windows UI selectors/keys are NOT verified on a real machine. Do **not** report it as "working" until a
@@ -33,16 +48,17 @@ It does **one provider-abstracted job**: `collect(room) → normalized messages 
 
 | Layer | Source | Status |
 |-------|--------|--------|
-| macOS GUI export recipe | aktofu `export-kakaotalk.sh` (mutex + room assert + CSV room-check) | **GREEN** (copied/generalized) |
-| message normalize/parse | aktofu `step2-analyze.py` | **GREEN** (copied/generalized) |
-| quality gates (citation/topic) | aktofu `citation_gate.py` / `topic_boundary_gate.py` | reused (pointer) |
-| provider abstraction | NEW — `collect(room, provider)` dispatch | this skill |
-| manual provider | NEW — user-exported txt(Ctrl+S) auto-discovery + room fail-fast | **GREEN** (Windows/WSL today-path) |
-| Windows guide | NEW — `windows_guide.py` env-detect + katok-windows install guide | this skill |
-| Windows provider | NEW scaffold — pywinauto Ctrl+S local txt | **spike-pending** |
-| DB-direct provider | NEW wrapper — `kakaocli query` | experimental |
-| vault store | NEW — normalized → LLM-wiki md | this skill |
-| send abstraction | NEW — `send(channel,msg)` kmsg/Discord/Slack | this skill |
+| macOS GUI export recipe | generalized export recipe (mutex + room assert + CSV room-check) | **GREEN** (copied/generalized) |
+| message normalize/parse | generalized message parser | **GREEN** (copied/generalized) |
+| **length gate (pre-send)** | `scripts/gates/length_gate.py` | **shipped** — refuses silent truncation |
+| **citation gate (verbatim quotes)** | `scripts/gates/citation_gate.py` | **shipped** — verifies quotes against the raw export |
+| provider abstraction | `collect(room, provider)` dispatch | this skill |
+| manual provider | user-exported txt(Ctrl+S) auto-discovery + room fail-fast | **GREEN** (Windows/WSL today-path) |
+| Windows guide | `windows_guide.py` env-detect + install guide | this skill |
+| Windows provider | pywinauto Ctrl+S local txt | **spike-pending** |
+| DB-direct provider | `kakaocli query` wrapper | experimental |
+| vault store | normalized → LLM-wiki md | this skill |
+| send abstraction | `send(channel,msg)` kmsg/Discord/Slack, length gate at the gateway | this skill |
 
 ## Layout
 ```
@@ -54,13 +70,16 @@ kakao-wiki/
     normalize.py            # raw export (CSV/txt) -> normalized messages (parser, no GUI)
     store_to_wiki.py        # normalized -> vault markdown note
     summarize.py            # pick a summary STYLE (detect /prompt skill, else presets)
-    send.py                 # send(channel, message): kakao | discord | slack
+    send.py                 # send(channel, message): kakao | discord | slack (length gate at gateway)
+    gates/
+      length_gate.py        # pre-send: refuse a message a chat app would silently truncate
+      citation_gate.py      # verify every quoted span appears verbatim in the raw export
     providers/
       macos_osascript.sh    # GREEN: KakaoTalk GUI export -> CSV (mutex + room asserts)
       windows_pywinauto.py  # SPIKE-PENDING: Ctrl+S local txt export (selectors via ENV)
       db_kakaocli.sh        # EXPERIMENTAL: kakaocli DB read -> CSV
   prompts/
-    summary-styles.md       # preset summary-style prompts (brief/detailed/bullets/formal/casual)
+    summary-styles.md       # preset summary-style prompts + shared discipline (voice/quote/budget)
   references/
     architecture.md         # provider abstraction + data flow + Windows feasibility grades
     macos-provider.md       # osascript dependency points + verification log
@@ -90,49 +109,92 @@ python3 scripts/collect.py --room "<ROOM>" --provider db --out ./out
 ```
 Produces `out/<ROOM>-<DATE>.raw.csv` (or .txt) and `out/<ROOM>-<DATE>.normalized.json`.
 
-### 1.5 Windows / WSL 사용자 자동 안내 (agent instruction)
-사용자가 Windows 또는 WSL 환경에서 이 스킬을 쓰려 하면(질문·에러·환경 감지 무엇이든), **첫 행동으로
-`python3 scripts/windows_guide.py --room "<ROOM>"` 을 실행해 그 출력을 사용자에게 보여준다** — 환경
-감지(Windows/WSL) + Ctrl+S 내보내기 단계 + 내보내기 파일 자동 탐색 미리보기 + katok-windows(검색 CLI)
-설치 감지·설치 명령 안내를 한 번에 출력한다. Windows 의 오늘 경로 = 공식 내보내기(Ctrl+S) → `manual`
-provider(위 1번). 자동 내보내기(`windows` provider)는 spike-pending 이므로 "곧 된다"고 약속하지 말 것.
+> **Windows / WSL users (agent instruction):** first run
+> `python3 scripts/windows_guide.py --room "<ROOM>"` and show its output — it detects the
+> environment, walks the Ctrl+S export, previews auto-discovery, and checks for the
+> katok-windows search CLI. Today's path on Windows = official export (Ctrl+S) → the
+> `manual` provider above. The `windows` auto-export provider is spike-pending — don't
+> promise it "just works".
 
-### 2. Store into vault (LLM wiki)
+### 2. Normalize
+`collect.py` already emits `normalized.json`. If you *already have* a raw export (someone
+sent you a Ctrl+S txt, or you have a CSV), normalize it directly:
 ```bash
-python3 scripts/store_to_wiki.py --normalized out/<ROOM>-<DATE>.normalized.json \
-  --vault "<ABS vault path>" --subdir "Library/Research/<ROOM>"
+python3 scripts/normalize.py --input <raw.csv|raw.txt> --out out/<ROOM>-<DATE>.normalized.json
 ```
+The parser absorbs CSV and txt into one message schema, so every later stage is
+provider-agnostic. (Topic clustering / analysis is intentionally out of scope — this skill
+takes you to normalized messages.)
 
-### 2.5 (optional) Choose a summary style
+### 3. Summarize (optional)
 Let the user pick how the digest reads. `summarize.py` auto-detects the `/prompt` skill
 (uses it if present) and otherwise emits a bundled preset prompt; pipe its output to your
-summary LLM, write the result to `summary.txt`, then send it.
+summary LLM, write the result to `summary.txt`, then verify and send.
 ```bash
 python3 scripts/summarize.py --list                       # brief | detailed | bullets | formal | casual
 python3 scripts/summarize.py --style brief \
   --normalized out/<ROOM>-<DATE>.normalized.json --room "<ROOM>"   # prints a ready prompt
 ```
-Add or edit styles in `prompts/summary-styles.md` (one `## <id>` + fenced prompt each).
+Every preset carries a shared discipline (no editorializing voice · quote verbatim ·
+length budget). Add or edit styles in `prompts/summary-styles.md`.
 
-### 3. (optional) Send a summary
+### 4. Verify (before you send a digest)
+This is the stage most home-grown pipelines skip and regret. Two shipped gates, plus a
+place for your own content policy:
+
+```bash
+# a) Length — refuse a message a chat app would SILENTLY truncate. Runs automatically
+#    inside send.py too; run it standalone while drafting.
+python3 scripts/gates/length_gate.py --file summary.txt --max-chars 3900
+
+# b) Citation — if the summary quotes people, every quoted span must appear verbatim in
+#    the raw export (catches a model paraphrasing inside quotation marks).
+python3 scripts/gates/citation_gate.py summary.txt out/<ROOM>-<DATE>.raw.csv
+```
+Both gates print **what they do NOT check** on every run, and both can be waived with a
+reason that is printed (never a silent bypass).
+
+> **c) Content policy is YOURS, not the tool's.** These gates check *fidelity* (length,
+> quote accuracy) — they do **not** judge whether the content is *appropriate to publish*.
+> Publication-appropriateness is a separate axis from factual accuracy, and it depends on
+> your room, your audience, and your rules. If you need to block certain content
+> (personal data, off-limits topics), add your own check here — the skill deliberately
+> ships no opinion about what you may say.
+
+> **d) Is the gate actually running?** A gate rarely fails by giving the wrong verdict —
+> it fails by being **off** (skipped because a flag/env/order wasn't set) or **vacuous**
+> (it runs but measures an empty set, or silently skips when its input is missing). Both
+> are quiet and both let bad output through. A gate that has *never* failed is either
+> perfect or not running — prove which. That is why these gates default ON (length runs
+> inside `send.py`; run citation yourself before sending) and print *what they measured*
+> on every run, so "it ran" is something you can see, not assume.
+
+### 5. Send (optional)
 ```bash
 python3 scripts/send.py --channel kakao   --room "<ROOM>"        --message-file summary.txt
 python3 scripts/send.py --channel discord --target <channel_id> --message-file summary.txt
 python3 scripts/send.py --channel slack   --target <#channel>   --message-file summary.txt   # via Slack MCP (see references)
 ```
+`send.py` runs the **length gate at the single gateway** before any channel dispatch, so a
+new caller can't forget it. Over-length → non-zero exit (nothing sent); bypass with
+`--waiver "<reason>"` (the reason is printed). Tune the budget with `--max-chars`.
 
-### 4. Quality gates (when producing a cited digest)
-If you build a cited summary, validate every quote against the raw export with your own
-citation gate (each quoted line must appear verbatim in `out/<ROOM>-<DATE>.raw.csv`):
+### 6. Record (store to your vault)
+Archive the normalized conversation as a markdown note in your Obsidian/LLM-wiki vault.
+This can run any time after normalize — it does not require summarize/send.
 ```bash
-python3 <your-gates>/citation_gate.py <digest>.md out/<ROOM>-<DATE>.raw.csv
+python3 scripts/store_to_wiki.py --normalized out/<ROOM>-<DATE>.normalized.json \
+  --vault "<ABS vault path>" --subdir "Library/Research/<ROOM>"
 ```
 
 ## Guardrails
 - **No live-pipeline mutation** — this skill is a self-contained copy. It shares only the KakaoTalk GUI
-  mutex (`/tmp/kakao-gui.lock`) so it serializes with any running aktofu export (no concurrent GUI race).
+  mutex (`/tmp/kakao-gui.lock`) so it serializes with any running export (no concurrent GUI race).
 - **macOS Accessibility permission required** (System Settings → Privacy & Security → Accessibility) for the
   osascript provider and `kmsg`.
 - **Windows provider must stay labeled experimental** until a real spike — see honesty contract.
 - **`send` ≠ one tool**: KakaoTalk uses `kmsg` (macOS AX, KakaoTalk-only); Discord uses bot REST/MCP; Slack
   uses the Slack MCP. `send.py` unifies the *interface*, not the underlying transport.
+- **The gates prevent silence, they don't decide for you** — every gate is waivable with a printed reason,
+  and every gate states its own blind spots. A tool that hides what it doesn't check breeds overconfidence.
+- **A "✓ sent" is not proof of delivery** — read back where you can (see `references/send-channels.md`).

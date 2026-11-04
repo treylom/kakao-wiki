@@ -19,7 +19,7 @@ Design so a Windows spike is *minimal* (same philosophy as windows_pywinauto.py)
         KW_SEND_KEY         send key (default "{ENTER}")
         KW_INPUT_WAIT_SEC   seconds to wait after opening the room before pasting (default 2)
 
-🚨 HONESTY GUARD (source-fact §4):
+🚨 HONESTY GUARD (honesty rule):
   Not yet verified on real KakaoTalk Windows. Selectors/hotkeys above are *assumptions*.
   Default run = guidance + non-zero exit (never fakes success). Run with
   `--i-have-verified-on-real-windows` AFTER confirming the flow works on a real machine.
@@ -66,7 +66,7 @@ def _clip_set(text: str) -> None:
 def _open_room(room: str):
     """Open the target room via search — with literal-safe input and hard asserts.
 
-    Review fixes (손석희 2026-07-18):
+    Review fixes (code review, 2026-07):
     - The room name goes through the CLIPBOARD (paste), never send_keys — pywinauto
       interprets ^ + % { } as key sequences, so typing a room name literally is unsafe.
     - After Enter we ASSERT the room chat window exists (KW_ROOM_TITLE_RE, default
@@ -86,7 +86,7 @@ def _open_room(room: str):
     time.sleep(0.7)
     send_keys("{ENTER}")
     time.sleep(float(os.environ.get("KW_INPUT_WAIT_SEC", "2")))
-    # 앵커 필수(손석희 재검토): pywinauto title_re 는 regex.match(=prefix 매칭)라
+    # 앵커 필수(code review): pywinauto title_re 는 regex.match(=prefix 매칭)라
     # escape 만으로는 "room-other" 도 통과한다 → \A..\Z 로 정확 일치 강제.
     # 제목에 접미사가 붙는 UI 는 KW_ROOM_TITLE_RE 로 명시 override.
     room_re = os.environ.get("KW_ROOM_TITLE_RE") or rf"\A{_re.escape(room)}\Z"
@@ -112,7 +112,7 @@ def send_message(room: str, msg: str) -> int:
     send_keys(os.environ.get("KW_PASTE_HOTKEY", "^v"))
     time.sleep(0.5)
     send_keys(os.environ.get("KW_SEND_KEY", "{ENTER}"))
-    # Dispatch ≠ delivery (source-fact §2, 손석희 리뷰): until an automated read-back
+    # Dispatch ≠ delivery (honesty rule, code review): until an automated read-back
     # exists, return a distinct non-zero code so no caller can mistake this for
     # verified success. Exit 0 is RESERVED for a future read-back-verified path.
     sys.stderr.write("[send] DISPATCHED_UNVERIFIED (exit 6) — keystrokes sent to the "

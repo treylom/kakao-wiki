@@ -19,8 +19,8 @@ macOS Accessibility(`System Events`)로 흉내낸다. → **macOS 전용** 의�
 10. `click button "확인" of sheet 1` — 대용량 완료 sheet 닫기
 11. **CSV 방 hard-assert** — `csv_room_matches`(NFC substring)로 추출 CSV 가 target 방인지 검증
 
-## 견고성 장치 (aktofu에서 계승)
-- Kakao 전역 mutex `/tmp/kakao-gui.lock` — 동시 GUI 점유 직렬화(aktofu와 공유).
+## 견고성 장치
+- Kakao 전역 mutex `/tmp/kakao-gui.lock` — 동시 GUI 점유 직렬화(같은 mutex 를 잡는 어떤 프로세스와도 공유).
 - GUI 방 assert(창 부재 시 fail-fast exit 2) + CSV 방 assert(불일치 시 exit 3) = 방교차 이중 차단.
 - 한글 NFD/NFC 무관 substring 비교.
 

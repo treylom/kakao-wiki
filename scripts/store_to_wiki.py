@@ -43,7 +43,7 @@ def build_note(norm: dict, room: str, title: str) -> str:
         f"{norm.get('first_time','')} ~ {norm.get('last_time','')}",
         f"> 출처 export: `{norm.get('source','')}` · 봇/공지 제외 {norm.get('filtered_bot_announcement',0)}건",
         "",
-        "관련: [[kakao-wiki]] 수집 스킬로 생성. 분석·인용 검증은 aktofu citation_gate 재사용.",
+        "관련: [[kakao-wiki]] 수집 스킬로 생성. 인용 검증은 scripts/gates/citation_gate.py 로 원문 대조.",
         "",
         "## 대화 기록",
         "",

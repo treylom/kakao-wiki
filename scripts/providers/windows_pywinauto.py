@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""windows_pywinauto.py — kakao-wiki Windows provider (live replay blocked in Codex sandbox).
+"""windows_pywinauto.py — kakao-wiki Windows provider (live replay blocked in this environment).
 
 Goal: real KakaoTalk-on-Windows chat export, the macOS provider's counterpart.
 Path measured by user on 2026-06-25 KST:
@@ -21,8 +21,8 @@ Design:
         KW_DIALOG_WAIT_SEC  seconds to wait for the save dialog (default 8)
         KW_FILE_WAIT_SEC    seconds to wait for the file to land (default 30)
 
-🚨 HONESTY GUARD (source-fact §4):
-  Codex sandbox could not launch Windows executables (`UtilBindVsockAnyPort`), so this
+🚨 HONESTY GUARD (honesty rule):
+  This session's environment could not launch Windows executables, so this
   file is syntax/unit verified but not scenario-replayed by this session. Do not claim
   live GREEN until step scripts produce screenshots + export path.
 """

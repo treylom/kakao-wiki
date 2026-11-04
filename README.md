@@ -4,13 +4,16 @@
 
 (English README: [README.en.md](README.en.md))
 
-하는 일은 하나로 추상화돼 있습니다:
+흐름은 6단계이고, 가운데 셋은 필요에 따라 선택입니다. 홈메이드 파이프라인이 흔히 건너뛰고 후회하는 **검증(4)** 자리가 게이트로 채워져 있는 게 이 스킬의 핵심입니다:
 
 ```
-collect(방) → 정규화(normalize) → 저장소에 저장   (+ 선택: send(채널, 메시지))
+1 수집(collect) → 2 정규화(normalize) → 3 요약(summarize)
+→ 4 검증(verify: 길이·인용) → 5 발송(send) → 6 저장(record)
 ```
 
-카카오톡은 공개 API가 없어서, 수집은 카카오톡 앱 자체의 **대화 내보내기(export) 메뉴**를 자동으로 구동합니다. 그 뒤의 파싱·저장·다채널 발송은 결정론적(deterministic) 파이썬입니다.
+**수집 → 정규화**만 필수입니다. 요약·검증·발송·저장은 선택이지만, **요약을 보낼 때 길이 게이트는 자동으로 돌고**, **인용이 든 요약이면 인용 게이트를 먼저 돌리세요.**
+
+카카오톡은 공개 API가 없어서, 수집은 카카오톡 앱 자체의 **대화 내보내기(export) 메뉴**를 자동으로 구동합니다. 그 뒤의 파싱·검증·저장·다채널 발송은 결정론적(deterministic) 파이썬입니다.
 
 > 이 도구를 어떻게 쓰고 어떤 데이터를 모으는지는 사용자 본인의 책임입니다.
 
@@ -99,13 +102,26 @@ python3 scripts/store_to_wiki.py \
 ```
 → 프론트매터(`type`·`tags`·`aliases`·통계) 붙은 마크다운 노트 생성.
 
-### 3. (선택) 요약 발송
+### 3. (선택) 발송 전 검증 — 길이·인용 게이트
+```bash
+# 길이 — 채팅앱이 조용히 잘라버릴 메시지를 거부. send.py 안에서도 자동으로 돕니다.
+python3 scripts/gates/length_gate.py --file summary.txt --max-chars 3900
+# 인용 — 요약이 사람 말을 인용하면, 따옴표 안 문장은 원본에 그대로 있어야 합니다.
+python3 scripts/gates/citation_gate.py summary.txt out/<ROOM>-<DATE>.raw.csv
+```
+- **잘린 메시지는 "뒷부분 없는 메시지"가 아니라 "그냥 짧은 메시지"로 보입니다** — 잘렸다는 사실이 아무 데도 안 남아서, 길이 게이트가 없으면 보낸 사람도 모릅니다. 그래서 `send.py`는 발송 관문 한 곳에서 길이 게이트를 자동으로 돌립니다(채널별 기본값: 카톡 3900 · 디스코드 2000 · 슬랙 4000, `--max-chars`로 조정).
+- 두 게이트 모두 **못 재는 것을 매 실행 출력**하고(길이 게이트는 "정확성·인용 충실도·주제 커버리지·발행 적절성은 안 본다"고 매번 찍습니다), 우회할 때는 **사유가 출력**됩니다(조용한 우회 없음).
+- **한 번도 실패한 적 없는 게이트 = 완벽하거나 안 도는 것.** 게이트를 *추가*하는 것보다 "이 게이트가 지금 실제로 도는가"를 물을 수 있는 게 중요합니다 — 그래서 게이트 파일이 없으면 `send.py`는 발송을 **거부**합니다(게이트를 지우는 게 통과 지름길이 되지 않도록). 우회는 `--allow-missing-gate` 명시로만.
+- ⚠️ **글자 수 vs 바이트**: 길이는 유니코드 **글자 수**로 셉니다(한글 1자 = 1). 로그·도구가 "N chars"라 적고 실제로는 바이트(한글이 3배로 부풀려짐)인 경우가 흔하니, 직접 만든 계수는 이 축을 한 번 확인하세요.
+- **발행 적절성은 도구가 판정하지 않습니다** — 이 게이트들은 *충실도*(길이·인용 정확성)만 봅니다. "이 내용을 내보내도 되는가"는 방·독자·규칙에 달린 별개 축이라, 막아야 할 내용(개인정보 등)이 있으면 사용자가 자기 검사를 여기 끼워 넣으세요.
+
+### 4. (선택) 요약 발송
 ```bash
 python3 scripts/send.py --channel kakao   --room "<ROOM>"        --message-file summary.txt
 python3 scripts/send.py --channel discord --target <channel_id> --message-file summary.txt
 python3 scripts/send.py --channel slack   --target "<#channel>" --message-file summary.txt
 ```
-`send.py`는 *인터페이스*만 통일합니다. 실제 전송 방식은 채널마다 다릅니다(kmsg / 디스코드 REST / 슬랙 MCP — `references/send-channels.md`).
+`send.py`는 *인터페이스*만 통일합니다. 실제 전송 방식은 채널마다 다릅니다(kmsg / 디스코드 REST / 슬랙 MCP — `references/send-channels.md`). 발송 관문에서 길이 게이트가 먼저 돌고, 초과 시 아무것도 안 보냅니다(`--waiver "<사유>"`로 우회, 사유는 출력됨).
 
 ---
 
@@ -182,7 +198,10 @@ kakao-wiki/
     normalize.py            # raw export(CSV/txt) -> 정규화 메시지(GUI 무관 파서)
     store_to_wiki.py        # normalized -> 저장소 마크다운 노트
     summarize.py            # 요약 스타일 선택(/prompt 감지 + 프리셋)
-    send.py                 # send(채널, 메시지): kakao | discord | slack
+    send.py                 # send(채널, 메시지): kakao | discord | slack (관문에서 길이 게이트)
+    gates/
+      length_gate.py        # 발송 전: 채팅앱이 조용히 자를 메시지를 거부(채널별 기본값 + 우회)
+      citation_gate.py      # 인용문이 원본 export 에 verbatim 존재하는지 검증
     providers/
       macos_osascript.sh    # 검증됨: 카카오톡 GUI export -> CSV (mutex + 방 검증)
       windows_pywinauto.py  # 검증대기: Ctrl+S export + 무인(ⓐ) 로그인·방오픈 골격 (셀렉터 ENV)

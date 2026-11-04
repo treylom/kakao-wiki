@@ -2,8 +2,8 @@
 # macos_osascript.sh — kakao-wiki macOS provider (GREEN)
 # KakaoTalk 대화방을 GUI 자동화(osascript AX)로 텍스트 export → CSV.
 #
-# 출처: aktofu export-kakaotalk.sh 레시피를 *복제·일반화*(라이브 파이프라인 미수정).
-#   - Kakao 전역 GUI mutex(/tmp/kakao-gui.lock) 공유 → 동시 GUI 점유 race 차단(aktofu와 직렬화).
+# 출처: 프로덕션 KakaoTalk 내보내기 레시피를 *복제·일반화*(원본 파이프라인 미수정).
+#   - Kakao 전역 GUI mutex(/tmp/kakao-gui.lock) 공유 → 동시 GUI 점유 race 차단(같은 mutex 를 잡는 프로세스와 직렬화).
 #   - GUI 방 hard-assert + CSV 방 hard-assert(방교차 차단, 한글 NFC substring).
 # KakaoTalk은 공개 API가 없어 메뉴 클릭을 osascript로 흉내냄 — osascript 의존은 macOS 전용.
 #
@@ -43,7 +43,7 @@ close_extra_windows() {
   sleep 0.3
 }
 
-# Kakao 전역 mutex (aktofu와 공유) — 동시 GUI 점유 차단.
+# Kakao 전역 mutex (같은 mutex 를 잡는 프로세스와 공유) — 동시 GUI 점유 차단.
 KAKAO_LOCK="/tmp/kakao-gui.lock"
 if [ -d "$KAKAO_LOCK" ]; then
   LOCK_AGE=$(( $(date +%s) - $(stat -f %m "$KAKAO_LOCK" 2>/dev/null || echo 0) ))
