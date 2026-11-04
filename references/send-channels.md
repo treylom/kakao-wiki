@@ -1,7 +1,7 @@
 # kakao-wiki — send channels (kmsg / Discord / Slack)
 
 `scripts/send.py` 는 `send(channel, message)` **인터페이스만** 통일한다. 실제 전송 수단은 채널별로
-완전히 다르다(연구 §3.3 정정 — "kmsg가 카톡/디스코드/슬랙 다 보낸다"는 오해).
+완전히 다르다("kmsg가 카톡/디스코드/슬랙 다 보낸다"는 오해).
 
 | 채널 | 전송 수단 | 메커니즘 | 대상 인자 | 인증 |
 |---|---|---|---|---|

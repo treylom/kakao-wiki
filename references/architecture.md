@@ -51,7 +51,7 @@ normalize.py 가 CSV/txt 를 동일 normalized 스키마로 흡수 → 하위(st
 - **단일 세션 제약**: 카카오톡 한 계정=한 기기 → 무인 로그인 시 다른 기기 세션 끊김. 단일 기기 메신저 파이프라인의 일반적 모델과 동일(필요 시에만 세션 재확립). 플랫폼 제약(도구 결함 아님).
 - 검증: 자격증명 레이어 = **deterministic GREEN**(Secret 마스킹·로딩 우선순위 확인). UI 자동화 = spike-pending.
 
-## Windows 현실성 등급 (내보내기 자동화가 실제로 되는가 — 연구 §2.2)
+## Windows 현실성 등급 (내보내기 자동화가 실제로 되는가)
 
 | 방식 | 등급 | 근거 |
 |---|---|---|
@@ -71,7 +71,7 @@ normalize.py 가 CSV/txt 를 동일 normalized 스키마로 흡수 → 하위(st
 - 본 스킬은 프로덕션 파이프라인 산출물의 **복제·일반화**(import/symlink 아님). 원본 파이프라인 파일 수정 0.
 - 유일 공유 = `/tmp/kakao-gui.lock`(Kakao GUI mutex) → 동시 GUI 점유 시 직렬화(race 0).
 
-## 검증 사다리 (code-quality §7)
+## 검증 사다리
 - macOS provider = **scenario-replay**(실 KakaoTalk export 1회) GREEN — `macos-provider.md` 검증 로그.
 - Windows provider = 미검증 = spike-pending(deterministic/replay 둘 다 미통과).
 - normalize.py = **deterministic**(픽스처 CSV in→normalized out) 확인 가능.

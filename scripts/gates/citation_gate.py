@@ -21,10 +21,10 @@ Design philosophy (generalized from a production citation verifier):
   2. Check the RIGHT unit (the "measured-object" rule). This gate compares the
      text INSIDE quotation marks — not the surrounding narrative. Paraphrased
      narration is allowed; only quoted spans must be verbatim. Comparing a
-     summarized body against a verbatim toggle is a classic false-"fabricated"
-     verdict, so this gate never does that.
-  3. Cross-file search. Pass every export that could contain the source (e.g. two
-     days around a slot boundary); a quote counts as found if it is verbatim in
+     summarized body against the original text is a classic source of false
+     "fabricated" verdicts, so this gate never does that.
+  3. Cross-file search. Pass every export that could contain the source (e.g. both
+     days' exports when a summary window crosses midnight); a quote counts as found if it is verbatim in
      ANY of them.
   4. State the blind spots on every run: this gate checks quote fidelity ONLY.
 

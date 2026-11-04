@@ -3,7 +3,7 @@
 `scripts/providers/windows_pywinauto.py` — KakaoTalk Windows 의 `Ctrl+S` 로컬 txt 저장을
 pywinauto(UIA)로 코드화한 **스캐폴드**. **실 검증 전이라 성공을 가장하지 않는다**(기본 비-0 exit).
 
-## 왜 Ctrl+S 경로인가 (현실성 등급 🟢 — 연구 §2.2)
+## 왜 Ctrl+S 경로인가 (현실성 등급 🟢)
 Windows 카톡은 대화창에서 **`Ctrl+S` → 내 컴퓨터에 txt 저장**을 지원한다(메뉴 다단 클릭보다 단순).
 키 입력 1발 + 저장 다이얼로그 Enter + 파일 폴링이면 끝 → Mac 의 다단 메뉴 흐름보다 오히려 쉽다.
 (대안: 메뉴 "모든 메시지 내부저장소 저장"=🟡, "텍스트만 보내기"=이메일=🟠, DB 직접=⚪.)
@@ -25,7 +25,7 @@ Windows 카톡은 대화창에서 **`Ctrl+S` → 내 컴퓨터에 txt 저장**�
    `collect.py` `run_windows` 의 SPIKE-PENDING 가드 해제 + `architecture.md`·`SKILL.md` 상태표를
    GREEN 으로 갱신 + 본 문서에 검증 로그 기록.
 
-## 도구 선택지 (셋 다 UIA 접근 가능 — 연구 §2.1)
+## 도구 선택지 (셋 다 UIA 접근 가능)
 - **pywinauto**(UIA) — Python·객체수준, 우리 macOS AX 모델과 1:1, 1순위(본 scaffold).
 - **AutoHotkey** — UIA 컨트롤 클릭 빠름·단독 exe, 키 입력 위주 폴백.
 - **PowerShell UIAutomation** — .NET 내장, 추가 런타임 0.
@@ -49,7 +49,7 @@ Windows 카톡은 대화창에서 **`Ctrl+S` → 내 컴퓨터에 txt 저장**�
 8. **자동 로그인(ⓐ)**: 다른 기기가 세션을 가져간 뒤 이 Windows 에서 KakaoTalk 재실행 →
    `_login_via_keyboard` 가 로그인 화면을 잡고 키보드 ID→Tab→PW→Enter 로 세션 재확립되나?
    - 확정: `KW_LOGIN_WINDOW_RE`(로그인 창 타이틀)·필드 탭 순서·**2FA/기기인증 프롬프트 유무**.
-   - 2FA 프롬프트가 뜨면 = 완전 무인 불가 → 보고(전용기기/세션지속 폴백 재협의). 사전 단정 ❌(code-quality §5).
+   - 2FA 프롬프트가 뜨면 = 완전 무인 불가 → 보고(전용기기/세션지속 폴백 재협의). 사전 단정 ❌.
    - ⚠️ 비밀번호는 `_credentials.py` 에서 읽어 KakaoTalk 에만 입력 — 로그·Discord·stdout echo 0.
 9. **방 자동오픈**: `_open_room_via_search` 가 키보드 검색→방이름→Enter 로 self-chat 을 여나?(좌표 클릭 ❌)
    - 확정: `KW_SEARCH_HOTKEY`(검색 포커스 단축키, 기본 추정 `^f`)·결과 선택키·단일창 패널 구조.

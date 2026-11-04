@@ -4,7 +4,7 @@
 # GUI 자동화(osascript/pywinauto)를 완전 우회하고 KakaoTalk 로컬 DB 를 직접 읽는다.
 # 가장 견고(요소 트리 fragility 0)하지만 kakaocli 키유도가 호스트에서 성공해야 동작.
 #   - macOS: kakaocli auth(키유도+DB접근 검증) → kakaocli messages/query 로 방 메시지 읽기.
-#   - Windows: DB 스키마·키유도가 Mac 과 다를 수 있어 별도 검증 필요(연구 §2.3, ⚪ 불확실).
+#   - Windows: DB 스키마·키유도가 Mac 과 다를 수 있어 별도 검증 필요(⚪ 불확실).
 #
 # Usage: db_kakaocli.sh "<ROOM>" "<OUT_DIR>"
 # 출력(stdout 마지막 줄): 생성된 CSV 경로. kakaocli 미가용/키유도 실패 시 비-0 exit.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """send.py — kakao-wiki 통합 발신 인터페이스 send(channel, message).
 
-⚠️ 인터페이스만 통일 — 실제 전송 수단은 채널별로 다르다(연구 §3.3 정정):
+⚠️ 인터페이스만 통일 — 실제 전송 수단은 채널별로 다르다:
   kakao   = kmsg send (macOS Accessibility, KakaoTalk 전용). 방 *이름* 만(chat_id ❌).
   discord = Bot REST POST (User-Agent 필수). 토큰 = DISCORD_BOT_TOKEN 환경변수 또는 --token.
   slack   = Slack Incoming Webhook(SLACK_WEBHOOK_URL) — 또는 에이전트 세션에서 Slack MCP

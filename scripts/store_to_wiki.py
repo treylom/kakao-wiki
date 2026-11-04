@@ -72,7 +72,7 @@ def main() -> int:
 
     vault = Path(a.vault)
     if not vault.is_absolute():
-        print("ERROR: --vault 는 절대경로여야 함 (vault-ops §4)", file=sys.stderr)
+        print("ERROR: --vault 는 절대경로여야 함", file=sys.stderr)
         return 1
     dest_dir = vault / a.subdir
     dest_dir.mkdir(parents=True, exist_ok=True)
