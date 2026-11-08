@@ -125,13 +125,16 @@ SPIKE_CHECKLIST = """\
 [Windows spike — do all before reporting 'works']
  1. KakaoTalk Windows installed + logged in.
  2. Open the TARGET ROOM as a *chat window* by double-click (NOT the search-list state).
- 3. Focus the chat window, press the save hotkey (default Ctrl+S) → confirm a
-    "save .txt to my PC" dialog appears. If a different hotkey/menu is needed, note it.
+ 3. Focus the chat window, click the room's ≡ ("more") button → "대화 내보내기" →
+    "텍스트만 저장" → confirm the save dialog appears. If a click misses, move it with
+    KW_MORE_X_FROM_RIGHT / KW_MORE_Y_FROM_TOP / KW_EXPORT_MENU_X / KW_EXPORT_MENU_Y /
+    KW_TEXT_ONLY_X / KW_TEXT_ONLY_Y (offsets in pixels) and note the values.
  4. Confirm saved file path + name pattern (e.g. KakaoTalk_<room>_<ts>.txt) and that
     normalize.py's txt parser reads it (adjust TXT parser if the format differs).
  5. Find the window title regex for (a) the KakaoTalk window and (b) the room window.
     Export them as KW_KAKAO_TITLE_RE / KW_ROOM_TITLE_RE (no code edit needed).
- 6. If a control is not UIA-exposed, fall back to send_keys for that step.
+ 6. If a control is not UIA-exposed, the menu steps fall back to coordinate clicks
+    (the KW_*_X / KW_*_Y offsets in step 3); the save dialog is driven with send_keys.
  7. After ONE real export succeeds: rerun with --i-have-verified-on-real-windows,
     paste the env vars used + the verification log into references/windows-provider-spike.md,
     then flip status to GREEN in architecture.md / SKILL.md.
@@ -139,7 +142,7 @@ SPIKE_CHECKLIST = """\
 
 
 def _require_creds():
-    """ⓐ user-credential 모델: 로컬 설정에서 ID/PW 로드. 없으면 안내 후 exit 4.
+    """사용자 자격증명(무인) 방식: 로컬 설정에서 ID/PW 로드. 없으면 안내 후 exit 4.
     PW 는 Secret 래퍼로 감싸 화면/로그에 절대 노출되지 않는다(_credentials.py)."""
     from _credentials import load_credentials, CRED_HELP
     creds = load_credentials()
@@ -151,7 +154,8 @@ def _require_creds():
 
 
 def _login_if_needed(app) -> bool:
-    """ⓐ 자동 로그인: 로그인 화면이 떠 있을 때만 키보드로 ID→Tab→PW→Enter (좌표 클릭 ❌).
+    """자동 로그인: 로그인 화면이 떠 있을 때만 비밀번호 칸(Edit[1])을 잡아 비밀번호만 입력 후 Enter
+    (ID 는 입력하지 않는다 — 코드는 비밀번호만 입력).
     이미 로그인(세션 유지)이면 creds 없이 즉시 skip → 방오픈/export 만 단독 실측 가능.
     자격증명은 로그인이 실제 필요할 때만 lazy 로드(_require_creds). PW 는 KakaoTalk 입력창에만
     들어가고 stdout/로그 echo 0. 🔬 실측 TODO(spike): 로그인 창 타이틀·필드 탭 순서·2FA 유무."""
@@ -184,7 +188,7 @@ def _login_if_needed(app) -> bool:
 
 
 def _open_room_via_search(app, room: str) -> None:
-    """ⓐ 방 자동오픈: 키보드 검색→Enter (좌표 클릭 ❌ = 오클릭 방지).
+    """방 자동오픈: 키보드 검색→Enter (좌표 클릭 ❌ = 오클릭 방지).
     🔬 실측 TODO(spike): 검색 포커스 단축키(KW_SEARCH_HOTKEY)·결과 선택키·단일창 패널 구조 확정."""
     from pywinauto.keyboard import send_keys  # type: ignore
     kakao_re = os.environ.get("KW_KAKAO_TITLE_RE", ".*(KakaoTalk|카카오톡).*")
@@ -201,8 +205,8 @@ def _open_room_via_search(app, room: str) -> None:
 
 
 def _unattended_prelude(room: str) -> None:
-    """무인 모드 prelude: 로그인(ⓐ creds) + 방 자동오픈 (export 직전).
-    ponytail: prelude 가 app 을 connect 하고 _export_via_ctrl_s 가 재-connect = 무해(idempotent).
+    """무인 모드 prelude: 로그인(사용자 자격증명) + 방 자동오픈 (export 직전).
+    ponytail: prelude 가 app 을 connect 하고 _export_via_menu 가 재-connect = 무해(idempotent).
     실측 후 단일 connect 로 합치고 싶으면 그때 리팩토링(현재는 명확성 우선)."""
     from pywinauto import Application  # type: ignore
     restore_kakao_window()
@@ -320,9 +324,9 @@ def main() -> int:
     ap.add_argument("--room", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--i-have-verified-on-real-windows", action="store_true",
-                    help="use ONLY after a real KakaoTalk-Windows spike confirmed the hotkey + selectors")
+                    help="use ONLY after a real KakaoTalk-Windows spike confirmed the menu export steps + selectors")
     ap.add_argument("--unattended", action="store_true",
-                    help="full unattended (ⓐ): auto-login (local user creds) + auto-open room + export. "
+                    help="full unattended (user-credential mode): auto-login (local user creds) + auto-open room + export. "
                          "Set KW_KAKAO_ID/KW_KAKAO_PW locally (see _credentials.py). Still gated by "
                          "--i-have-verified-on-real-windows until the login/search selectors are spiked.")
     a = ap.parse_args()
@@ -336,11 +340,11 @@ def main() -> int:
 
     try:
         if a.unattended:
-            _unattended_prelude(a.room)   # ⓐ auto-login + auto-open room (spike-gated)
+            _unattended_prelude(a.room)   # auto-login + auto-open room (spike-gated)
         path = _export_via_menu(a.room, Path(a.out))
     except Exception as e:  # noqa: BLE001 — surface the real failure to the spike operator
         print(f"\n❌ export failed: {type(e).__name__}: {e}")
-        print("→ adjust KW_KAKAO_TITLE_RE / KW_ROOM_TITLE_RE / KW_SAVE_HOTKEY and retry (see spike doc).")
+        print("→ adjust KW_KAKAO_TITLE_RE / KW_ROOM_TITLE_RE, or the menu click offsets (KW_MORE_X_FROM_RIGHT, KW_MORE_Y_FROM_TOP, KW_EXPORT_MENU_X/Y, KW_TEXT_ONLY_X/Y), and retry (see references/windows-provider-spike.md).")
         return 4
     print(str(path))  # last stdout line = export path (collect.py contract)
     return 0

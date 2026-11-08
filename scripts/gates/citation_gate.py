@@ -28,10 +28,15 @@ Design philosophy (generalized from a production citation verifier):
      ANY of them.
   4. State the blind spots on every run: this gate checks quote fidelity ONLY.
 
+Short quotes (fewer than --min-len characters, default 4) are skipped, but they
+are always listed on stdout so a skipped quote is never silent.
+
+This gate has no waiver option (only length_gate.py and send.py accept --waiver).
+
 Exit codes:
   0  — every extracted quote found verbatim (or no quotes to check)
   2  — one or more quotes NOT found verbatim
-  64 — usage error
+  64 — usage error (bad/missing arguments or unreadable files)
 """
 from __future__ import annotations
 
@@ -57,8 +62,21 @@ BLIND_SPOTS = (
 )
 
 
-def extract_quotes(text: str, min_len: int = MIN_QUOTE_LEN) -> list[str]:
-    """Return the distinct quoted spans in `text`, in first-seen order."""
+class UsageArgumentParser(argparse.ArgumentParser):
+    """ArgumentParser whose usage errors exit 64 (argparse's default is 2).
+
+    Exit 2 is reserved for a real gate FAIL, so a caller can tell "bad flags"
+    from "quote not found".
+    """
+
+    def error(self, message: str):  # type: ignore[override]
+        self.print_usage(sys.stderr)
+        print(f"{self.prog}: error: {message}", file=sys.stderr)
+        raise SystemExit(64)
+
+
+def _scan_quotes(text: str) -> list[str]:
+    """Return every distinct quoted span (stripped) in first-seen order."""
     seen: dict[str, None] = {}
     for open_q, close_q in QUOTE_PATTERNS:
         o = re.escape(open_q)
@@ -66,9 +84,19 @@ def extract_quotes(text: str, min_len: int = MIN_QUOTE_LEN) -> list[str]:
         # Non-greedy, no nested same-delimiter; span must not cross a newline.
         for m in re.finditer(f"{o}([^{c}\n]+?){c}", text):
             span = m.group(1).strip()
-            if len(span) >= min_len and span not in seen:
+            if span and span not in seen:
                 seen[span] = None
     return list(seen.keys())
+
+
+def extract_quotes(text: str, min_len: int = MIN_QUOTE_LEN) -> list[str]:
+    """Return the distinct quoted spans in `text` that are at least `min_len` long."""
+    return [q for q in _scan_quotes(text) if len(q) >= min_len]
+
+
+def skipped_quotes(text: str, min_len: int = MIN_QUOTE_LEN) -> list[str]:
+    """Return the distinct quoted spans that are shorter than `min_len` (not checked)."""
+    return [q for q in _scan_quotes(text) if len(q) < min_len]
 
 
 def load_sources(paths: list[str]) -> str:
@@ -81,7 +109,7 @@ def load_sources(paths: list[str]) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(
+    ap = UsageArgumentParser(
         description="Verify every quoted span in a digest appears verbatim in the raw export(s).",
     )
     ap.add_argument("digest", help="Digest/summary file containing quoted spans.")
@@ -106,9 +134,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"citation-gate: usage error — {exc}", file=sys.stderr)
         return 64
 
-    quotes = extract_quotes(digest_text, max(1, args.min_len))
+    min_len = max(1, args.min_len)
+    quotes = extract_quotes(digest_text, min_len)
+    skipped = skipped_quotes(digest_text, min_len)
 
     print(f"citation-gate: {len(quotes)} quote(s) to verify — {BLIND_SPOTS}")
+    if skipped:
+        listing = ", ".join(f'"{q}"' for q in skipped)
+        print(
+            f"citation-gate: skipped {len(skipped)} quote(s) shorter than {min_len} chars "
+            f"(not checked): {listing}"
+        )
 
     if not quotes:
         print("citation-gate: OK — no quoted spans found to verify")

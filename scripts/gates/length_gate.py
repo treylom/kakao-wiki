@@ -25,7 +25,7 @@ the expensive way — kept general on purpose):
 Exit codes:
   0  — within limit, or explicitly waived
   2  — would be truncated (over limit)
-  64 — usage error
+  64 — usage error (bad/missing arguments, unreadable file, empty waiver reason)
 """
 from __future__ import annotations
 
@@ -44,6 +44,19 @@ BLIND_SPOTS = (
 )
 
 
+class UsageArgumentParser(argparse.ArgumentParser):
+    """ArgumentParser whose usage errors exit 64 (argparse's default is 2).
+
+    Exit 2 is reserved for a real gate FAIL (over the limit), so a caller can tell
+    "bad flags" from "message too long".
+    """
+
+    def error(self, message: str):  # type: ignore[override]
+        self.print_usage(sys.stderr)
+        print(f"{self.prog}: error: {message}", file=sys.stderr)
+        raise SystemExit(64)
+
+
 def _read_text(path: str | None) -> str:
     if path is None or path == "-":
         return sys.stdin.read()
@@ -52,7 +65,7 @@ def _read_text(path: str | None) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(
+    ap = UsageArgumentParser(
         description="Refuse to send a message that a chat app would silently truncate.",
     )
     ap.add_argument(
