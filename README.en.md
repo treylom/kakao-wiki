@@ -121,7 +121,7 @@ python3 scripts/send.py --channel slack   --target "<#channel>" --message-file s
 ```
 `send.py` unifies the *interface*; the transport differs per channel (KakaoTalk = `kmsg` / Discord = REST API / Slack = Incoming Webhook — if the env var `SLACK_WEBHOOK_URL` is unset, nothing is sent and it exits with code 3; see `references/send-channels.md`). The length gate runs at the gateway first, and nothing is sent if it's over budget (bypass with `--waiver "<reason>"`; the reason is printed).
 
-`send.py` does not confirm that a message actually arrived on any channel (KakaoTalk, Discord or Slack); the exit code only means the command or HTTP request finished. Check important sends yourself. Exit codes: 1 input problem (token, room name, empty body, etc.) · 2 length gate refused (a Discord or Slack HTTP error is also 2) · 3 Slack webhook not set · 66 gate file missing · 6 on Windows, the keystrokes were sent to KakaoTalk but delivery is unconfirmed.
+`send.py` does not confirm that a message actually arrived on any channel (KakaoTalk, Discord or Slack); the exit code only means the command or HTTP request finished. Check important sends yourself. Main exit codes: 1 input problem (token, room name, empty body, etc.) · 2 length gate refused (a Discord or Slack HTTP error is also 2) · 3 Slack webhook not set · 66 gate file missing · 6 on Windows, the keystrokes were sent to KakaoTalk but delivery is unconfirmed. KakaoTalk sends pass through the exit code of `kmsg` or the Windows sender, so on the Windows path 2, 3 and 5 mean something else — see `references/send-channels.md` for the full list.
 
 ### 6. (optional) Store into your vault
 ```bash

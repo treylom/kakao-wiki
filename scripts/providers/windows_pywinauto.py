@@ -206,7 +206,7 @@ def _open_room_via_search(app, room: str) -> None:
 
 def _unattended_prelude(room: str) -> None:
     """무인 모드 prelude: 로그인(사용자 자격증명) + 방 자동오픈 (export 직전).
-    ponytail: prelude 가 app 을 connect 하고 _export_via_menu 가 재-connect = 무해(idempotent).
+    참고: prelude 가 app 을 connect 하고 _export_via_menu 가 재-connect = 무해(idempotent).
     실측 후 단일 connect 로 합치고 싶으면 그때 리팩토링(현재는 명확성 우선)."""
     from pywinauto import Application  # type: ignore
     restore_kakao_window()
