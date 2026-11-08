@@ -210,7 +210,7 @@ new caller can't forget it. Over-length → exit 2 (nothing sent); bypass with
 `--waiver "<reason>"` (the reason is printed). Tune the budget with `--max-chars`; the
 per-channel defaults are **kakao 3900 · discord 2000 · slack 4000**. Other exit codes:
 `1` missing token/room/empty body · `3` Slack webhook not set · `66` length-gate file
-missing. Discord/Slack server errors also return `2`. The kakao channel passes through the
+missing. Discord/Slack HTTP errors (any status) also return `2`. The kakao channel passes through the
 exit code of `kmsg` (macOS) or `windows_send.py` (Windows: `2` verification guard not set ·
 `3` pywinauto missing · `5` UI step failed · `6` keys sent, delivery unconfirmed — never `0`);
 full list in `references/send-channels.md`. `send.py` does not confirm delivery on any channel.
